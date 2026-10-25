@@ -160,6 +160,22 @@ Issues and pull requests are welcome. Before proposing a change, please read [CO
 
 欢迎提交 Issue 和 Pull Request。开始前请阅读[贡献指南](CONTRIBUTING.md)和[行为准则](CODE_OF_CONDUCT.md)。问题报告请包含操作系统、应用构建版本/提交、复现步骤和预期行为。**请勿附上剪贴板数据库、密钥、密码或私人剪贴板内容。**
 
+## Buy me a coffee / 请我喝杯咖啡
+
+If X Clipboard has been useful to you, you can support its continued development by buying me a cup of coffee. Thank you for your encouragement!
+
+如果这个项目对你有帮助，欢迎请我喝杯咖啡，支持项目继续改进。每一份鼓励都很感谢！
+
+<p align="center">
+  <strong>Alipay / 支付宝</strong><br>
+  <img src="assets/donate/alipay.png" alt="Alipay donation QR code / 支付宝收款码" width="280">
+</p>
+
+<p align="center">
+  <strong>WeChat Pay / 微信支付</strong><br>
+  <img src="assets/donate/wechat-pay.png" alt="WeChat Pay donation QR code / 微信支付收款码" width="280">
+</p>
+
 ## License and third-party notices / 许可与第三方声明
 
 Third-party resource and dependency notes are available in [docs/THIRD-PARTY.md](docs/THIRD-PARTY.md). A project-wide license for the application source has not yet been declared in this source tree; clarify the rights holder's intended license before redistribution. Bundled assets and runtime dependencies may have separate terms.
