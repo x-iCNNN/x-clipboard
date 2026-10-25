@@ -6,6 +6,7 @@ Rust 依赖完整版本锁定于 `Cargo.lock`；本文件记录手工分发的�
 |---|---|---|
 | GPUI Kit 0.8.0 | https://gpui-kit.com/docs/installation/ | 原生 UI 框架，精确锁定 |
 | Turso 0.8.3 | https://turso.tech/blog/encrypting-sqlite-databases-with-turso | 本地 AES-256-GCM；官方仍标记实验性 |
+| RustCrypto argon2 0.5.3 / chacha20poly1305 0.10.1 | https://docs.rs/argon2/0.5.3/ / https://docs.rs/chacha20poly1305/0.10.1/ | WebDAV Argon2id 密钥派生和 XChaCha20-Poly1305 认证加密；MIT / Apache-2.0 |
 | PDFium chromium/7881 | https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium/7881 | 匹配 pdfium-render 0.9.4 ABI；SHA-256 固定在下载脚本；保留包内许可 |
 | Unicode 17 emoji-test | https://unicode.org/Public/17.0.0/emoji/emoji-test.txt | 完整限定表情序列，无在线 GIF |
 | CLDR 中文 annotations | https://github.com/unicode-org/cldr-json/tree/main/cldr-json/cldr-annotations-full/annotations/zh | 2026-10-24 下载生成中文名称/关键字；快照 assets/emoji-zh.json |

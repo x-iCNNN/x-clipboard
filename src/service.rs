@@ -4,6 +4,7 @@ use crate::{
     preview::{self, Preview},
     storage::{HistoryStore, Usage},
 };
+use anyhow::Context as _;
 use crossbeam_channel::{Receiver, Sender, bounded};
 use std::{
     path::PathBuf,
@@ -15,6 +16,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct Snapshot {
+    pub sync: crate::sync::Status,
     pub usage: Usage,
     pub history_loaded: bool,
     pub entries: Arc<Vec<Entry>>,
@@ -37,6 +39,7 @@ pub struct Snapshot {
 impl Default for Snapshot {
     fn default() -> Self {
         Self {
+            sync: Default::default(),
             usage: Usage::default(),
             history_loaded: false,
             entries: Arc::new(vec![]),
@@ -59,6 +62,7 @@ impl Default for Snapshot {
     }
 }
 pub enum Command {
+    Sync(crate::sync::Request),
     HistoryActivity,
     Capture(ClipContent),
     Protect(String, Option<bool>, Option<bool>),
@@ -377,6 +381,20 @@ impl Service {
         state.status = message.into();
         state.revision += 1;
     }
+    fn start_sync(&self, store: &HistoryStore) -> anyhow::Result<crate::sync::Handle> {
+        let service = self.clone();
+        crate::sync::start(store, move |status| {
+            let refresh = !status.busy;
+            {
+                let mut snapshot = service.state.lock().unwrap();
+                snapshot.sync = status;
+                snapshot.revision += 1;
+            }
+            if refresh {
+                let _ = service.tx.try_send(Command::HistoryActivity);
+            }
+        })
+    }
     fn refresh(&self, store: &HistoryStore) -> anyhow::Result<()> {
         let entries = if self.history_active.load(Ordering::Acquire) {
             Some(store.list()?)
@@ -473,6 +491,7 @@ impl Service {
             }
         });
         let mut generating_thumbnails = std::collections::HashSet::new();
+        let mut sync_handle = store.as_ref().ok().and_then(|db| self.start_sync(db).ok());
         let mut failed_capture = None;
         for command in rx {
             let protection = match &command {
@@ -492,6 +511,9 @@ impl Service {
                 _ => None,
             };
             if matches!(command, Command::Shutdown) {
+                if let Some(sync) = &sync_handle {
+                    let _ = sync.send(crate::sync::Request::Stop);
+                }
                 self.backend.shutdown();
                 if let Ok(db) = &store
                     && let Err(e) = db.checkpoint()
@@ -504,6 +526,11 @@ impl Service {
             if matches!(command, Command::Retry) {
                 if store.is_err() {
                     store = HistoryStore::open(&self.root);
+                }
+                if sync_handle.is_none()
+                    && let Ok(db) = &store
+                {
+                    sync_handle = self.start_sync(db).ok();
                 }
                 if let Some(content) = failed_capture.take() {
                     self.send(Command::Capture(content));
@@ -530,6 +557,13 @@ impl Service {
             };
             let result = (|| -> anyhow::Result<()> {
                 match command {
+                    Command::Sync(request) => {
+                        sync_handle
+                            .as_ref()
+                            .context("同步服务尚未就绪")?
+                            .send(request)?;
+                        return Ok(());
+                    }
                     Command::HistoryActivity => {
                         self.refresh(db)?;
                         return Ok(());

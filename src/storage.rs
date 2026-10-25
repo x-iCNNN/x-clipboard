@@ -11,8 +11,9 @@ pub struct Usage {
 }
 
 pub struct HistoryStore {
-    _db: turso::Database,
-    connection: turso::Connection,
+    db: std::sync::Arc<turso::Database>,
+    pub(crate) write_gate: std::sync::Arc<std::sync::Mutex<()>>,
+    pub(crate) connection: turso::Connection,
     root: PathBuf,
 }
 
@@ -39,6 +40,7 @@ impl HistoryStore {
         )
         .context("无法打开加密数据库")?;
         let connection = db.connect()?;
+        crate::sync_store::initialize(&connection)?;
         pollster::block_on(async {
             connection.execute("PRAGMA synchronous=FULL", ()).await?;
             connection.execute("CREATE TABLE IF NOT EXISTS clips(id TEXT PRIMARY KEY, hash TEXT NOT NULL UNIQUE, metadata BLOB NOT NULL, payload BLOB NOT NULL, ordinal INTEGER NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL)",()).await?;
@@ -77,9 +79,18 @@ impl HistoryStore {
             anyhow::Ok(())
         })?;
         Ok(Self {
-            _db: db,
+            db: std::sync::Arc::new(db),
+            write_gate: Default::default(),
             connection,
             root: root.to_path_buf(),
+        })
+    }
+    pub(crate) fn fork(&self) -> Result<Self> {
+        Ok(Self {
+            db: self.db.clone(),
+            write_gate: self.write_gate.clone(),
+            connection: self.db.connect()?,
+            root: self.root.clone(),
         })
     }
     pub fn settings(&self) -> Result<Settings> {
@@ -96,6 +107,7 @@ impl HistoryStore {
     }
     pub fn save_settings(&self, settings: &Settings) -> Result<()> {
         settings.validate()?;
+        let _writer = self.write_gate.lock().unwrap();
         pollster::block_on(self.connection.execute("INSERT INTO settings(id,value) VALUES(1,?1) ON CONFLICT(id) DO UPDATE SET value=excluded.value",[serde_json::to_string(settings)?]))?;
         Ok(())
     }
@@ -154,6 +166,7 @@ impl HistoryStore {
         })
     }
     pub fn save_thumbnail(&self, id: &str, png: &[u8]) -> Result<bool> {
+        let _writer = self.write_gate.lock().unwrap();
         anyhow::ensure!(
             png.len() <= crate::model::MAX_THUMBNAIL_BYTES,
             "缩略图数据超出限制"
@@ -183,9 +196,7 @@ impl HistoryStore {
     pub fn capture(&self, content: &ClipContent, settings: &Settings) -> Result<Entry> {
         content.validate()?;
         let hash = content.fingerprint();
-        pollster::block_on(async {
-            self.connection.execute("BEGIN IMMEDIATE",()).await?;
-            let result=async {
+        let entry = self.transaction(|| pollster::block_on(async {
                 let mut rows=self.connection.query("SELECT metadata FROM clips WHERE hash=?1",[hash.clone()]).await?;
                 let previous=rows.next().await?.map(|r|r.get::<Vec<u8>>(0)).transpose()?;drop(rows);
                 let mut order=self.connection.query("SELECT COALESCE(MAX(ordinal),0)+1 FROM clips",()).await?;
@@ -194,12 +205,21 @@ impl HistoryStore {
                 entry.copied_at=now_ms();entry.order=ordinal;entry.source=content.source.clone();
                 self.connection.execute("INSERT INTO clips(id,hash,metadata,payload,ordinal,pinned,favorite,bytes) VALUES(?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT(hash) DO UPDATE SET metadata=excluded.metadata,ordinal=excluded.ordinal",turso::params![entry.id.clone(),hash,postcard::to_stdvec(&entry)?,postcard::to_stdvec(content)?,ordinal,entry.pinned as i64,entry.favorite as i64,entry.bytes as i64]).await?;
                 self.connection.execute("INSERT INTO clip_search(id,searchable) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET searchable=excluded.searchable",[entry.id.clone(),searchable(content)]).await?;
+                self.sync_capture(&entry).await?;
                 anyhow::Ok(entry)
-            }.await;
-            match result { Ok(entry)=>{if let Err(e)=self.connection.execute("COMMIT",()).await{let _=self.connection.execute("ROLLBACK",()).await;return Err(e.into());}Ok(entry)},Err(e)=>{let _=self.connection.execute("ROLLBACK",()).await;Err(e)} }
-        }).and_then(|entry|{self.prune(settings)?;Ok(entry)})
+        }))?;
+        self.prune(settings)?;
+        Ok(entry)
     }
     pub fn protect(&self, id: &str, pinned: Option<bool>, favorite: Option<bool>) -> Result<Entry> {
+        self.transaction(|| self.protect_inner(id, pinned, favorite))
+    }
+    fn protect_inner(
+        &self,
+        id: &str,
+        pinned: Option<bool>,
+        favorite: Option<bool>,
+    ) -> Result<Entry> {
         let mut entry: Entry = pollster::block_on(async {
             let mut rows = self
                 .connection
@@ -208,6 +228,8 @@ impl HistoryStore {
             let row = rows.next().await?.context("记录已被删除")?;
             anyhow::Ok(postcard::from_bytes(&row.get::<Vec<u8>>(0)?)?)
         })?;
+        let pin_changed = pinned.is_some_and(|value| value != entry.pinned);
+        let favorite_changed = favorite.is_some_and(|value| value != entry.favorite);
         if let Some(value) = pinned {
             entry.pinned = value;
         }
@@ -223,11 +245,20 @@ impl HistoryStore {
                 id
             ],
         ))?;
+        pollster::block_on(self.sync_protect(&entry, pin_changed, favorite_changed))?;
         Ok(entry)
     }
     pub fn delete(&self, ids: &[String]) -> Result<()> {
+        self.delete_inner(ids, true)
+    }
+    fn delete_inner(&self, ids: &[String], explicit: bool) -> Result<()> {
+        let _writer = self.write_gate.lock().unwrap();
         pollster::block_on(async {
             self.connection.execute("BEGIN IMMEDIATE", ()).await?;
+            if let Err(error) = self.sync_remove(ids, explicit).await {
+                let _ = self.connection.execute("ROLLBACK", ()).await;
+                return Err(error);
+            }
             for id in ids {
                 if let Err(e) = self
                     .connection
@@ -289,7 +320,7 @@ impl HistoryStore {
             anyhow::Ok(remove)
         })?;
         if !remove.is_empty() {
-            self.delete(&remove)?;
+            self.delete_inner(&remove, false)?;
         }
         Ok(remove.len())
     }
@@ -301,6 +332,7 @@ impl HistoryStore {
             .sum()
     }
     pub fn checkpoint(&self) -> Result<()> {
+        let _writer = self.write_gate.lock().unwrap();
         pollster::block_on(async {
             let mut rows = self
                 .connection
@@ -311,7 +343,7 @@ impl HistoryStore {
         })
     }
 }
-fn searchable(content: &ClipContent) -> String {
+pub(crate) fn searchable(content: &ClipContent) -> String {
     format!(
         "{}\n{}\n{}",
         content.text,

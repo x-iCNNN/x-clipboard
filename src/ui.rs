@@ -700,6 +700,11 @@ struct Desktop {
     limit: Entity<InputState>,
     capacity: Entity<InputState>,
     excluded: Entity<InputState>,
+    sync_endpoint: Entity<InputState>,
+    sync_username: Entity<InputState>,
+    sync_password: Entity<InputState>,
+    sync_secret: Entity<InputState>,
+    sync_inputs_loaded: bool,
     focus: FocusHandle,
     target: usize,
     menu: bool,
@@ -790,6 +795,27 @@ impl Desktop {
                     .placeholder(tr("例如：KeePass.exe, 1Password.exe"))
                     .default_value(settings.excluded_apps.join(", "))
             }),
+            sync_endpoint: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("https://dav.example.com/folder/")
+                    .default_value(snapshot.sync.endpoint.clone())
+            }),
+            sync_username: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("WebDAV 用户名（匿名服务可留空）")
+                    .default_value(snapshot.sync.username.clone())
+            }),
+            sync_password: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .masked(true)
+                    .placeholder("WebDAV 登录密码；已保存时留空不变")
+            }),
+            sync_secret: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .masked(true)
+                    .placeholder("至少 12 个字符；各设备使用相同同步密码")
+            }),
+            sync_inputs_loaded: snapshot.sync.configured,
             focus,
             target: cx.global::<Owner>().target,
             menu: false,
@@ -811,6 +837,17 @@ impl Desktop {
         let snapshot = self.service.snapshot();
         if snapshot.revision == self.snapshot.revision {
             return;
+        }
+        if !self.sync_inputs_loaded && snapshot.sync.configured {
+            if self.sync_endpoint.read(cx).value().is_empty() {
+                self.sync_endpoint.update(cx, |input, cx| {
+                    input.set_value(snapshot.sync.endpoint.clone(), window, cx)
+                });
+                self.sync_username.update(cx, |input, cx| {
+                    input.set_value(snapshot.sync.username.clone(), window, cx)
+                });
+            }
+            self.sync_inputs_loaded = true;
         }
         if snapshot.settings.theme != self.snapshot.settings.theme {
             apply_theme(&snapshot.settings.theme, cx);

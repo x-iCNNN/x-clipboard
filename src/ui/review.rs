@@ -424,6 +424,9 @@ async fn run(
         service.snapshot().history_loaded,
         "history hydration timed out"
     );
+    if let Ok(endpoint) = std::env::var("X_CLIPBOARD_UI_REVIEW_WEBDAV") {
+        return check_webdav(cx, service, output, &endpoint).await;
+    }
     if std::env::var("X_CLIPBOARD_UI_REVIEW_SEARCH").as_deref() == Ok("1") {
         return check_search_input(cx, output).await;
     }
@@ -877,6 +880,142 @@ async fn lifecycle_tick(cx: &mut AsyncApp, milliseconds: u64) {
         cx.update(poll);
     }
 }
+async fn check_webdav(
+    cx: &mut AsyncApp,
+    service: &Service,
+    output: &std::path::Path,
+    endpoint: &str,
+) -> Result<()> {
+    let base = url::Url::parse(endpoint)?;
+    ensure!(
+        matches!(base.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")),
+        "WebDAV UI review requires loopback fixture"
+    );
+    let endpoint = base
+        .join(&format!("native-{}/", uuid::Uuid::new_v4()))?
+        .to_string();
+    let create = endpoint.clone();
+    cx.background_executor()
+        .spawn(async move {
+            reqwest::blocking::Client::builder()
+                .no_proxy()
+                .build()?
+                .request("MKCOL".parse()?, create)
+                .basic_auth("sync-test", Some("fixture-login"))
+                .send()?
+                .error_for_status()?;
+            anyhow::Ok(())
+        })
+        .await?;
+    cx.update(|cx| open_window(Kind::Settings, cx));
+    lifecycle_tick(cx, 300).await;
+    let (handle, view) = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Settings].clone());
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            window.resize(size(px(960.), px(1020.)));
+            view.update(cx, |desktop, cx| {
+                desktop.route = "sync";
+                desktop
+                    .sync_endpoint
+                    .update(cx, |input, cx| input.set_value(endpoint, window, cx));
+                desktop
+                    .sync_username
+                    .update(cx, |input, cx| input.set_value("sync-test", window, cx));
+                desktop
+                    .sync_password
+                    .update(cx, |input, cx| input.set_value("fixture-login", window, cx));
+                desktop
+                    .sync_secret
+                    .update(cx, |input, cx| input.set_value("short", window, cx));
+                desktop.save_webdav(window, cx);
+            });
+        })
+    })?;
+    ensure!(
+        service
+            .snapshot()
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("12")),
+        "Native handler accepted a short secret"
+    );
+    service.dismiss_error();
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            view.update(cx, |desktop, cx| {
+                desktop.sync_secret.update(cx, |input, cx| {
+                    input.set_value("native fixture shared secret", window, cx)
+                });
+                desktop.save_webdav(window, cx);
+                ensure!(
+                    desktop.sync_password.read(cx).value().is_empty()
+                        && desktop.sync_secret.read(cx).value().is_empty(),
+                    "Native form retained submitted secrets"
+                );
+                anyhow::Ok(())
+            })
+        })
+    })??;
+    for _ in 0..300 {
+        lifecycle_tick(cx, 100).await;
+        let status = service.snapshot().sync;
+        if status.message.starts_with("同步失败") {
+            anyhow::bail!(status.message);
+        }
+        if status.last_success.is_some() && !status.busy {
+            break;
+        }
+    }
+    ensure!(
+        service.snapshot().sync.last_success.is_some(),
+        "Native WebDAV configuration did not synchronize"
+    );
+    for theme in ["light", "dark"] {
+        cx.update(|cx| apply_theme(theme, cx));
+        lifecycle_tick(cx, 250).await;
+        cx.update(|cx| {
+            handle.update(cx, |_, window, cx| -> Result<()> {
+                window.draw(cx).clear(cx);
+                window
+                    .render_to_image()?
+                    .save(output.join(format!("webdav-connected-{theme}.png")))?;
+                Ok(())
+            })
+        })??;
+    }
+    service.send(Command::Sync(x_clipboard::sync::Request::Enabled(false)));
+    for _ in 0..100 {
+        lifecycle_tick(cx, 50).await;
+        if !service.snapshot().sync.enabled {
+            break;
+        }
+    }
+    ensure!(
+        !service.snapshot().sync.enabled,
+        "Native automatic sync toggle did not persist"
+    );
+    let before = service.snapshot().sync.last_success;
+    service.send(Command::Sync(x_clipboard::sync::Request::Now));
+    for _ in 0..300 {
+        lifecycle_tick(cx, 100).await;
+        if service.snapshot().sync.last_success > before {
+            break;
+        }
+    }
+    ensure!(
+        service.snapshot().sync.last_success > before,
+        "Native manual sync failed while automatic sync disabled"
+    );
+    std::fs::write(
+        output.join("webdav-native-result.json"),
+        r#"{"passed":true,"short_secret_rejected":true,"submitted_secrets_cleared":true,"real_webdav_roundtrip":true,"automatic_toggle":true,"manual_while_disabled":true}"#,
+    )?;
+    println!(
+        "UI-REVIEW WEBDAV PASS: native form, secret validation, background sync, auto toggle, manual sync"
+    );
+    Ok(())
+}
+
 async fn check_dormancy(
     cx: &mut AsyncApp,
     service: &Service,

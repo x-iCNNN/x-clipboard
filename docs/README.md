@@ -14,6 +14,9 @@ This page is the map for project documentation. Product decisions and validation
 
 ## Product and engineering / 产品与工程
 
+- [Encrypted WebDAV sync / WebDAV 加密同步](WEBDAV.md)
+- [Installation and updates / 安装与更新](UPDATES.md)
+
 - [Memory and Windows packaging / 内存与 Windows 打包](MEMORY-AND-PACKAGING.md)
 - [Background lifecycle and memory / 后台生命周期与内存](BACKGROUND-MEMORY.md)
 - [Persisted encrypted thumbnails / 加密缩略图](PERSISTED-THUMBNAILS.md)

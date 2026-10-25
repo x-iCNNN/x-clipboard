@@ -6,6 +6,8 @@ pub mod preview;
 pub mod service;
 pub mod storage;
 pub mod symbols;
+pub mod sync;
+mod sync_store;
 pub mod themes;
 pub mod updater;
 pub mod vault;

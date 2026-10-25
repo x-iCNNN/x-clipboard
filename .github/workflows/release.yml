@@ -23,6 +23,24 @@ jobs:
           if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match Cargo.toml version' }
       - run: cargo fmt --all -- --check
       - run: cargo test --locked --no-default-features --lib
+      - name: Verify real WebDAV protocol and scheduler
+        shell: pwsh
+        run: |
+          python -m pip install WsgiDAV==4.4.0 cheroot==11.1.2
+          if ($LASTEXITCODE -ne 0) { throw 'WebDAV fixture dependencies failed' }
+          $ready = Join-Path $env:RUNNER_TEMP 'webdav-ready.json'
+          $root = Join-Path $env:RUNNER_TEMP 'webdav-fixture'
+          $server = Start-Process -FilePath (Get-Command python).Source -ArgumentList @('-u','scripts/webdav-test-server.py','--root',"`"$root`"",'--port','0') -WindowStyle Hidden -PassThru -RedirectStandardOutput $ready
+          try {
+            for ($i=0; $i -lt 100; $i++) {
+              if ((Test-Path $ready) -and (Get-Item $ready).Length -gt 0) { break }
+              Start-Sleep -Milliseconds 100
+            }
+            $endpoint = (Get-Content $ready -Raw | ConvertFrom-Json).endpoint
+            if (-not $endpoint) { throw 'WebDAV fixture did not become ready' }
+            cargo run --locked --no-default-features --example webdav_probe -- $endpoint
+            if ($LASTEXITCODE -ne 0) { throw 'Real WebDAV integration failed' }
+          } finally { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue }
       - name: Test installer and rollback
         shell: pwsh
         run: ./scripts/test-updater.ps1

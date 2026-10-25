@@ -38,14 +38,14 @@ This roadmap records the project's current direction, not a promise of dates. St
 
 ## Later exploration / 后续探索
 
-- [ ] Design synchronization only after encryption, key ownership, conflict resolution, and server trust are specified.
+- [x] Implement opt-in encrypted WebDAV synchronization; see docs/WEBDAV.md for key ownership, conflicts, trust and validation.
 - [ ] Reassess file-reference behavior and optional richer format previews based on user feedback.
 
-- [ ] 明确加密、密钥归属、冲突解决和服务器信任模型后，再设计同步。
+- [x] 实现可选加密 WebDAV 同步；密钥、冲突、信任及验证范围见 docs/WEBDAV.md。
 - [ ] 根据用户反馈重新评估文件引用体验及更多格式预览。
 
 ## Explicitly out of current scope / 当前明确不在范围内
 
-Online GIF search, OCR, AI processing, Office/media embedded preview, and an operational WebDAV sync service are not implemented. Do not describe planned items as shipped functionality.
+Online GIF search, OCR, AI processing, Office/media embedded preview are not implemented. Do not describe planned items as shipped functionality.
 
-在线 GIF 搜索、OCR、AI 处理、Office/音视频内置预览及可用的 WebDAV 同步服务均未实现。请勿将规划项写成已交付功能。
+在线 GIF 搜索、OCR、AI 处理、Office/音视频内置预览均未实现。请勿将规划项写成已交付功能。

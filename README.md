@@ -37,10 +37,10 @@ This project focuses on a few practical principles:
 
 本项目聚焦于几个实际原则：
 
-- **Local-first / 本机优先** — history is stored locally in an encrypted database; there is no account or cloud service in the current build.
+- **Local-first / 本机优先** — history is stored locally in an encrypted database; optional encrypted WebDAV sync uses your own storage.
 - **Native desktop workflow / 原生桌面体验** — a keyboard shortcut opens a compact panel, while a separate window handles search and organization.
 - **Keep formats useful / 保留格式价值** — capture supported clipboard formats together, including text, HTML/RTF, images, and file references.
-- **Clear boundaries / 明确能力边界** — file entries keep references rather than copying the original files; sync is planned, not implemented.
+- **Clear boundaries / 明确能力边界** — file entries keep references rather than copying the original files; device settings stay local.
 
 ## Features / 功能
 
@@ -53,12 +53,13 @@ This project focuses on a few practical principles:
 | **Preview** | Text/code, Markdown, HTML, images, PDF pages, and direct folder children. | 预览文本/代码、Markdown、HTML、图片、PDF 页面和文件夹直接子项。 |
 | **Personalize** | Light/dark/system themes, compact density, shortcut settings, and offline emoji/symbol search. | 明暗/跟随系统主题、紧凑密度、快捷键设置及离线表情/符号搜索。 |
 | **Protect** | Local encrypted storage, OS-protected key material, bounded background work, and no plaintext preview files. | 本地加密存储、操作系统保护密钥、有界后台任务，预览不写明文文件。 |
+| **Sync** | Optional end-to-end encrypted WebDAV sync with automatic/manual merge and deletion propagation. | 可选端到端加密 WebDAV 同步，支持自动/手动合并和主动删除同步。 |
 
 > **Current limitations / 当前限制**
 >
-> WebDAV sync is not implemented. File records store references, so the original file cannot be restored if it is moved or deleted. Application-source exclusion is currently Windows-only. The Windows `Win+V` system-panel coexistence, broad application compatibility, high-DPI/multi-monitor behavior, and macOS/Linux native operation still need release-level validation.
+> Optional end-to-end encrypted WebDAV sync is available; see [setup and boundaries](docs/WEBDAV.md). File records store references, so the original file cannot be restored if it is moved or deleted. Application-source exclusion is currently Windows-only. The Windows `Win+V` system-panel coexistence, broad application compatibility, high-DPI/multi-monitor behavior, and macOS/Linux native operation still need release-level validation.
 >
-> WebDAV 同步尚未实现。文件记录只保存路径引用，原文件移动或删除后无法恢复。应用来源排除目前仅支持 Windows。Windows `Win+V` 与系统面板共存、更多应用兼容性、高 DPI/多屏行为，以及 macOS/Linux 原生运行仍需发布级验收。
+> 已支持可选的端到端加密 WebDAV 同步，详见[配置与边界](docs/WEBDAV.md)。文件记录只保存路径引用，原文件移动或删除后无法恢复。应用来源排除目前仅支持 Windows。Windows `Win+V` 与系统面板共存、更多应用兼容性、高 DPI/多屏行为，以及 macOS/Linux 原生运行仍需发布级验收。
 
 ## Screenshots / 截图
 
@@ -157,13 +158,13 @@ Useful records:
 - [ ] Build and run native acceptance on macOS and Linux (X11 and Wayland where applicable).
 - [ ] Finish data-directory selection/migration and key-recovery guidance.
 - [ ] Audit the full third-party license inventory; prepare signed, platform-appropriate packages.
-- [ ] Evaluate sync only after a concrete design for encryption, key ownership, and conflict handling is approved.
+- [x] Ship optional encrypted WebDAV sync with explicit key ownership and conflict handling.
 
 - [ ] 完成 Windows `Win+V` 共存及常见应用、DPI、多屏、休眠/恢复场景的发布级验证。
 - [ ] 在 macOS 和 Linux（适用时覆盖 X11 与 Wayland）完成原生验收。
 - [ ] 完成数据目录选择/迁移与密钥恢复指引。
 - [ ] 审核完整第三方许可清单，准备符合平台习惯的签名安装包。
-- [ ] 在明确加密、密钥归属和冲突处理方案后，再评估同步功能。
+- [x] 提供可选加密 WebDAV 同步，明确密钥归属和冲突处理。
 
 See [ROADMAP.md](ROADMAP.md) for status and scope notes.
 

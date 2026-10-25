@@ -720,15 +720,83 @@ impl Desktop {
     }
 
     #[inline(never)]
-    fn sync_page(&self, cx: &App) -> AnyElement {
-        div().w_full().pt(px(22.)).flex().flex_col().items_center().gap(px(16.))
-            .child(brand_icon(IconName::Cloud, 70., true, cx)).child(badge("计划中", false, cx))
-            .child(div().text_size(px(24.)).font_weight(FontWeight::SEMIBOLD).child(tr("让内容跟随你的工作。")))
-            .child(div().text_size(px(13.)).text_color(cx.theme().muted_foreground).text_center().child(tr("未来通过 WebDAV，在你的设备之间同步剪贴板。\n使用你选择的存储服务，保持对数据的掌控。")))
-            .child(div().mt_3().w(px(380.)).p_5().border_1().border_color(cx.theme().border).rounded(px(10.)).bg(cx.theme().muted.opacity(0.35)).flex().flex_col().gap(px(16.)).children([
-                (IconName::Monitor, "跨设备延续工作"), (IconName::Shield, "同步前加密，隐私由你掌握"), (IconName::Cloud, "连接自己的 WebDAV 服务"),
-            ].into_iter().map(|(icon, label)| div().flex().items_center().gap_3().text_size(px(13.)).child(Icon::new(icon).size(px(17.)).text_color(accent(cx))).child(tr(label).to_owned()))))
-            .child(div().mt_3().child(value("当前版本仅保存在本机，尚未连接任何同步服务。", cx))).into_any_element()
+    fn sync_page(&self, cx: &mut Context<Self>) -> AnyElement {
+        let status = &self.snapshot.sync;
+        let mut rows = Vec::new();
+        for (label, description, input) in [
+            (
+                "WebDAV 目录",
+                "填写已存在且可读写的 HTTPS 目录。",
+                &self.sync_endpoint,
+            ),
+            (
+                "登录账号",
+                "使用服务商提供的 WebDAV 账号。",
+                &self.sync_username,
+            ),
+            (
+                "登录密码",
+                "仅加密保存在本机；留空保留已保存的密码。",
+                &self.sync_password,
+            ),
+            (
+                "同步密码",
+                "独立于登录密码；各设备保持相同，遗失后无法解密。",
+                &self.sync_secret,
+            ),
+        ] {
+            rows.push(
+                div()
+                    .p_4()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(label))
+                    .child(value(description, cx))
+                    .child(Input::new(input).disabled(status.busy))
+                    .into_any_element(),
+            );
+        }
+        div().flex().flex_col().gap_4()
+            .child(notice(IconName::Shield, "内容在上传前加密。同步历史、置顶、收藏与主动删除；文件只同步路径引用，设备设置和本机容量清理保持独立。", false, cx))
+            .child(section("WebDAV 连接", rows, cx))
+            .child(section("同步状态", vec![
+                setting_row("自动同步", "启用后启动时同步，此后每分钟检查一次。",
+                    Switch::new("auto-webdav").checked(status.enabled).disabled(!status.configured || status.busy)
+                        .accessibility_label("自动同步")
+                        .on_click(cx.listener(|t, on: &bool, _, _| t.service.send(Command::Sync(x_clipboard::sync::Request::Enabled(*on)))))
+                        .into_any_element(), true, cx),
+            ], cx))
+            .child(div().text_size(px(12.)).text_color(cx.theme().muted_foreground).child(status.message.clone()))
+            .when(status.last_success.is_some(), |d| d.child(value(&format!("上次成功：{}", age(status.last_success.unwrap_or_default())), cx)))
+            .child(div().flex().justify_end().gap_2()
+                .child(Button::new("sync-now").label("立即同步").disabled(!status.configured || status.busy)
+                    .on_click(cx.listener(|t, _, _, _| t.service.send(Command::Sync(x_clipboard::sync::Request::Now)))))
+                .child(Button::new("save-sync").primary().label("保存并同步").disabled(status.busy)
+                    .on_click(cx.listener(|t, _, window, cx| t.save_webdav(window, cx)))))
+            .into_any_element()
+    }
+    #[inline(never)]
+    pub(in crate::ui) fn save_webdav(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let config = x_clipboard::sync::Config {
+            endpoint: self.sync_endpoint.read(cx).value().trim().to_owned(),
+            username: self.sync_username.read(cx).value().to_string(),
+            password: self.sync_password.read(cx).value().to_string(),
+            secret: self.sync_secret.read(cx).value().to_string(),
+            enabled: true,
+        };
+        if !config.secret.is_empty() && config.secret.chars().count() < 12 {
+            self.service.error("同步密码至少需要 12 个字符".into());
+            return;
+        }
+        self.service
+            .send(Command::Sync(x_clipboard::sync::Request::Configure(config)));
+        self.sync_password
+            .update(cx, |input, cx| input.set_value("", window, cx));
+        self.sync_secret
+            .update(cx, |input, cx| input.set_value("", window, cx));
     }
 
     #[inline(never)]
