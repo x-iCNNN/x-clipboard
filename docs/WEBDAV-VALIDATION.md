@@ -23,4 +23,6 @@
 | `x-clipboard-v0.3.0-windows-x64.zip` | `c3868257839ffe9551553d884a616e173ff0554029221c5e6869d3ec4fd6df78` |
 | `x-clipboard-v0.3.0-windows-x64-setup.exe` | `8bbf5f8829cd6f47c913584bd28fea285b4d96d10d5f31a2805fcf778c17cb09` |
 
-协议范围、端到端加密、容量清理、逻辑删除、远端密文保留和大小限制见 [WEBDAV.md](WEBDAV.md)。未声称所有商用 WebDAV、真实用户账号或 macOS/Linux 原生运行均已验收。发布后仍需核对公开 Release 资产和在线更新接口。
+协议范围、端到端加密、容量清理、逻辑删除、远端密文保留和大小限制见 [WEBDAV.md](WEBDAV.md)。未声称所有商用 WebDAV、真实用户账号或 macOS/Linux 原生运行均已验收。
+
+发布后核对通过：四个远端资产均已上传，大小和 GitHub SHA-256 与上表及本地校验文件一致。公开 `releases/latest` 返回 `v0.3.0`，标签指向最终修复提交 `18b1396132443e6b2536bb3b43dcc9c2e350d952`。显式执行 GitHub 在线下载探针通过，验证公开更新包下载、SHA-256、解压与当前版本无需重复更新。
