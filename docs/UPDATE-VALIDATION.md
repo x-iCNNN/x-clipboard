@@ -20,3 +20,5 @@
 | `x-clipboard-v0.2.0-windows-x64-setup.exe` | `93e00d79a600036b772dcf98e0500327637c4b9a2b8e11e31637d0ac0586994c` |
 
 已验证更新检查、包完整性和安装机制；跨两个真实发布版本的在线升级仍需下一次正式版本发布时复验。v0.1.0 不含更新器，首次需手动安装 v0.2.0。安装器和应用未做代码签名。
+
+发布后复验：四个远端资产均为 `uploaded`，大小和 GitHub SHA-256 与本地一致。公开 `releases/latest` 返回 `v0.2.0`；标签指向源码提交 `6d9aa71bc570fda69f46728a643c7853c8f6408d`。显式执行 `cargo test --locked --no-default-features --lib updater::tests::github_live_check -- --ignored --nocapture` 通过，覆盖公开版本发现、实际更新包下载、大小与 SHA-256 校验、解压和当前版本无须重复更新。
