@@ -96,21 +96,59 @@ pub(super) fn start(cx: &mut App) {
 /// Exercises the real GPUI InputState while a disposable native edit window
 /// retains foreground/focus. All injected input is confined to these windows.
 async fn check_search_input(cx: &mut AsyncApp, output: &std::path::Path) -> Result<()> {
-    use windows::{core::w, Win32::{Foundation::HWND,
-        UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*}}};
-    unsafe extern "system" fn target_proc(hwnd: HWND, message: u32,
-        w: windows::Win32::Foundation::WPARAM, l: windows::Win32::Foundation::LPARAM)
-        -> windows::Win32::Foundation::LRESULT {
+    use windows::{
+        Win32::{
+            Foundation::HWND,
+            UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
+        },
+        core::w,
+    };
+    unsafe extern "system" fn target_proc(
+        hwnd: HWND,
+        message: u32,
+        w: windows::Win32::Foundation::WPARAM,
+        l: windows::Win32::Foundation::LPARAM,
+    ) -> windows::Win32::Foundation::LRESULT {
         unsafe { DefWindowProcW(hwnd, message, w, l) }
     }
     let (target, editor) = unsafe {
-        let class = WNDCLASSW { lpfnWndProc: Some(target_proc),
-            lpszClassName: w!("XClipboardSearchProbeTarget"), ..Default::default() };
-        ensure!(RegisterClassW(&class) != 0, "cannot register owned search target");
-        let hwnd = CreateWindowExW(WINDOW_EX_STYLE::default(), w!("XClipboardSearchProbeTarget"), w!("Search probe"),
-            WS_OVERLAPPEDWINDOW, 40, 40, 480, 180, None, None, None, None)?;
-        let edit = CreateWindowExW(WINDOW_EX_STYLE::default(), w!("EDIT"), w!(""),
-            WS_CHILD | WS_VISIBLE, 10, 10, 400, 80, Some(hwnd), None, None, None)?;
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(target_proc),
+            lpszClassName: w!("XClipboardSearchProbeTarget"),
+            ..Default::default()
+        };
+        ensure!(
+            RegisterClassW(&class) != 0,
+            "cannot register owned search target"
+        );
+        let hwnd = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            w!("XClipboardSearchProbeTarget"),
+            w!("Search probe"),
+            WS_OVERLAPPEDWINDOW,
+            40,
+            40,
+            480,
+            180,
+            None,
+            None,
+            None,
+            None,
+        )?;
+        let edit = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            w!("EDIT"),
+            w!(""),
+            WS_CHILD | WS_VISIBLE,
+            10,
+            10,
+            400,
+            80,
+            Some(hwnd),
+            None,
+            None,
+            None,
+        )?;
         let _ = ShowWindow(hwnd, SW_SHOW);
         // Start-Process -WindowStyle Hidden applies to the first ShowWindow call.
         let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
@@ -119,9 +157,13 @@ async fn check_search_input(cx: &mut AsyncApp, output: &std::path::Path) -> Resu
         (hwnd.0 as usize, edit.0 as usize)
     };
     struct Target(usize);
-    impl Drop for Target { fn drop(&mut self) {
-        unsafe { let _ = DestroyWindow(HWND(self.0 as *mut _)); }
-    }}
+    impl Drop for Target {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = DestroyWindow(HWND(self.0 as *mut _));
+            }
+        }
+    }
     let _target = Target(target);
     // Windows may deny programmatic activation of a background review process.
     // A real click is confined to our own verified target, never another app.
@@ -129,82 +171,235 @@ async fn check_search_input(cx: &mut AsyncApp, output: &std::path::Path) -> Resu
         use windows::Win32::Foundation::{POINT, RECT};
         unsafe {
             let hwnd = HWND(target as *mut _);
-            SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)?;
+            SetWindowPos(
+                hwnd,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            )?;
             let mut rect = RECT::default();
             GetWindowRect(hwnd, &mut rect)?;
-            let point = POINT { x: rect.left + 50, y: rect.top + 60 };
-            ensure!(GetAncestor(WindowFromPoint(point), GA_ROOT) == hwnd,
-                "owned search target is obscured; refuse to click");
+            let point = POINT {
+                x: rect.left + 50,
+                y: rect.top + 60,
+            };
+            ensure!(
+                GetAncestor(WindowFromPoint(point), GA_ROOT) == hwnd,
+                "owned search target is obscured; refuse to click"
+            );
             SetCursorPos(point.x, point.y)?;
             let clicks = [MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP].map(|flags| INPUT {
-                r#type: INPUT_MOUSE, Anonymous: INPUT_0 { mi: MOUSEINPUT {
-                    dwFlags: flags, ..Default::default() }} });
-            ensure!(SendInput(&clicks, std::mem::size_of::<INPUT>() as i32) == 2,
-                "owned search target click was denied");
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 {
+                    mi: MOUSEINPUT {
+                        dwFlags: flags,
+                        ..Default::default()
+                    },
+                },
+            });
+            ensure!(
+                SendInput(&clicks, std::mem::size_of::<INPUT>() as i32) == 2,
+                "owned search target click was denied"
+            );
         }
-        cx.background_executor().timer(Duration::from_millis(120)).await;
+        cx.background_executor()
+            .timer(Duration::from_millis(120))
+            .await;
     }
-    ensure!(unsafe { GetForegroundWindow().0 as usize } == target,
-        "owned native target could not become foreground");
+    ensure!(
+        unsafe { GetForegroundWindow().0 as usize } == target,
+        "owned native target could not become foreground"
+    );
     cx.update(|cx| {
         cx.global_mut::<Owner>().target = platform::foreground();
         open_window(Kind::Quick, cx);
     });
-    cx.background_executor().timer(Duration::from_millis(500)).await;
-    let (handle, view) = cx.update(|cx| cx.global::<Owner>().windows.get(&Kind::Quick).cloned())
+    cx.background_executor()
+        .timer(Duration::from_millis(500))
+        .await;
+    let (handle, view) = cx
+        .update(|cx| cx.global::<Owner>().windows.get(&Kind::Quick).cloned())
         .context("quick window was not opened")?;
-    ensure!(unsafe { GetForegroundWindow().0 as usize } == target,
-        "opening the quick panel activated it");
-    cx.update(|cx| handle.update(cx, |_, window, cx| {
-        view.update(cx, |desktop, cx| {
-            desktop.search.update(cx, |input, cx| input.focus(window, cx));
-        });
-    }))?;
-    cx.background_executor().timer(Duration::from_millis(150)).await;
-    ensure!(unsafe { GetForegroundWindow().0 as usize } == target,
-        "focusing GPUI search activated the panel");
+    cx.update(|cx| {
+        handle.update(cx, |_, window, _| -> Result<()> {
+            ensure!(
+                (f32::from(window.viewport_size().width) - QUICK_WIDTH).abs() <= 1.,
+                "nonactivating quick panel has wrong initial width"
+            );
+            Ok(())
+        })
+    })??;
+    ensure!(
+        unsafe { GetForegroundWindow().0 as usize } == target,
+        "opening the quick panel activated it"
+    );
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            view.update(cx, |desktop, cx| {
+                desktop
+                    .search
+                    .update(cx, |input, cx| input.focus(window, cx));
+            });
+        })
+    })?;
+    cx.background_executor()
+        .timer(Duration::from_millis(150))
+        .await;
+    ensure!(
+        unsafe { GetForegroundWindow().0 as usize } == target,
+        "focusing GPUI search activated the panel"
+    );
     let send = |key: VIRTUAL_KEY, scan: u16, flags: KEYBD_EVENT_FLAGS| -> Result<()> {
-        let pair = [false, true].map(|up| INPUT { r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: key, wScan: scan,
-                dwFlags: flags | if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) },
-                ..Default::default() }}});
-        ensure!(unsafe { SendInput(&pair, std::mem::size_of::<INPUT>() as i32) } == 2,
-            "owned search probe input was denied");
+        let pair = [false, true].map(|up| INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: key,
+                    wScan: scan,
+                    dwFlags: flags
+                        | if up {
+                            KEYEVENTF_KEYUP
+                        } else {
+                            KEYBD_EVENT_FLAGS(0)
+                        },
+                    ..Default::default()
+                },
+            },
+        });
+        ensure!(
+            unsafe { SendInput(&pair, std::mem::size_of::<INPUT>() as i32) } == 2,
+            "owned search probe input was denied"
+        );
         Ok(())
     };
     // Physical Latin keys exercise the native accelerator/TranslateMessage path.
     for key in [VK_A, VK_B, VK_C, VK_SPACE] {
         send(key, 0, KEYBD_EVENT_FLAGS(0))?;
-        cx.background_executor().timer(Duration::from_millis(35)).await;
-        println!("SEARCH-PROBE synthetic key {} => {:?}", key.0,
-            cx.update(|cx| view.read(cx).search.read(cx).value().to_string()));
+        cx.background_executor()
+            .timer(Duration::from_millis(35))
+            .await;
     }
     // Unicode commits exercise UTF-16 text entry independently of a specific IME.
     for unit in "中文".encode_utf16() {
         send(VIRTUAL_KEY(0), unit, KEYEVENTF_UNICODE)?;
-        cx.background_executor().timer(Duration::from_millis(35)).await;
+        cx.background_executor()
+            .timer(Duration::from_millis(35))
+            .await;
     }
     send(VK_BACK, 0, KEYBD_EVENT_FLAGS(0))?;
-    cx.background_executor().timer(Duration::from_millis(150)).await;
+    cx.background_executor()
+        .timer(Duration::from_millis(150))
+        .await;
     let value = cx.update(|cx| view.read(cx).search.read(cx).value().to_string());
-    ensure!(value.to_lowercase() == "abc 中", "GPUI search edit mismatch: {value:?}");
+    ensure!(
+        value.to_lowercase() == "abc 中",
+        "GPUI search edit mismatch: {value:?}"
+    );
     unsafe {
-        ensure!(GetForegroundWindow().0 as usize == target && GetFocus().0 as usize == editor,
-            "GPUI search stole focus from the original input");
-        ensure!(GetWindowTextLengthW(HWND(editor as *mut _)) == 0, "search keys leaked to target");
+        ensure!(
+            GetForegroundWindow().0 as usize == target && GetFocus().0 as usize == editor,
+            "GPUI search stole focus from the original input"
+        );
+        ensure!(
+            GetWindowTextLengthW(HWND(editor as *mut _)) == 0,
+            "search keys leaked to target"
+        );
     }
-    cx.update(|cx| handle.update(cx, |_, window, cx| view.update(cx, |desktop, cx| {
-        desktop.search.update(cx, |input, cx| input.set_value("", window, cx));
-    })))?;
-    cx.background_executor().timer(Duration::from_millis(80)).await;
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            view.update(cx, |desktop, cx| {
+                desktop
+                    .search
+                    .update(cx, |input, cx| input.set_value("", window, cx));
+            })
+        })
+    })?;
+    cx.background_executor()
+        .timer(Duration::from_millis(80))
+        .await;
     send(VK_Z, 0, KEYBD_EVENT_FLAGS(0))?;
-    cx.background_executor().timer(Duration::from_millis(100)).await;
-    ensure!(cx.update(|cx| view.read(cx).search.read(cx).value() == "z"),
-        "search was not editable after clearing");
+    cx.background_executor()
+        .timer(Duration::from_millis(100))
+        .await;
+    ensure!(
+        cx.update(|cx| view.read(cx).search.read(cx).value() == "z"),
+        "search was not editable after clearing"
+    );
+    for up in [false, true] {
+        let modifier = INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: VK_CONTROL,
+                    dwFlags: if up {
+                        KEYEVENTF_KEYUP
+                    } else {
+                        KEYBD_EVENT_FLAGS(0)
+                    },
+                    ..Default::default()
+                },
+            },
+        };
+        ensure!(
+            unsafe { SendInput(&[modifier], std::mem::size_of::<INPUT>() as i32) } == 1,
+            "owned search modifier input was denied"
+        );
+        cx.background_executor()
+            .timer(Duration::from_millis(35))
+            .await;
+        if !up {
+            send(VK_A, 0, KEYBD_EVENT_FLAGS(0))?;
+            cx.background_executor()
+                .timer(Duration::from_millis(35))
+                .await;
+        }
+    }
+    send(VIRTUAL_KEY(0), '重' as u16, KEYEVENTF_UNICODE)?;
+    cx.background_executor()
+        .timer(Duration::from_millis(100))
+        .await;
+    ensure!(
+        cx.update(|cx| view.read(cx).search.read(cx).value() == "重"),
+        "Ctrl+A did not select the search text"
+    );
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            view.update(cx, |desktop, cx| {
+                if let Some(entry) = desktop.snapshot.entries.first() {
+                    desktop.open_preview(entry.id.clone(), window, cx);
+                }
+            })
+        })
+    })?;
+    cx.background_executor()
+        .timer(Duration::from_millis(150))
+        .await;
+    ensure!(
+        unsafe { GetForegroundWindow().0 as usize } == target,
+        "preview expansion activated quick panel"
+    );
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            view.update(cx, |desktop, cx| {
+                desktop.close_preview(window, cx);
+            })
+        })
+    })?;
+    cx.background_executor()
+        .timer(Duration::from_millis(150))
+        .await;
+    ensure!(
+        unsafe { GetForegroundWindow().0 as usize } == target,
+        "preview collapse activated quick panel"
+    );
     cx.update(|cx| handle.update(cx, |_, window, cx| hide(window, cx)))?;
-    std::fs::write(output.join("search-input-result.json"),
-        r#"{"passed":true,"native_focus_preserved":true,"latin_and_unicode_commit":true,"backspace":true,"clear_then_edit":true,"physical_ime_composition":"not_verified"}"#)?;
+    std::fs::write(
+        output.join("search-input-result.json"),
+        r#"{"passed":true,"native_focus_preserved":true,"latin_and_unicode_commit":true,"backspace":true,"clear_then_edit":true,"physical_ime_composition":"not_verified"}"#,
+    )?;
     println!("UI-REVIEW SEARCH PASS: real GPUI input, focus preserved, text/edit/clear verified");
     Ok(())
 }
@@ -231,6 +426,47 @@ async fn run(
     );
     if std::env::var("X_CLIPBOARD_UI_REVIEW_SEARCH").as_deref() == Ok("1") {
         return check_search_input(cx, output).await;
+    }
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_LANGUAGE_SWITCH").as_deref() == Ok("1") {
+        let original = service.snapshot().settings;
+        cx.update(|cx| {
+            for kind in [Kind::Main, Kind::Settings, Kind::Welcome] {
+                open_window(kind, cx);
+            }
+        });
+        lifecycle_tick(cx, 250).await;
+        for &(language, _) in i18n::LANGUAGES {
+            let mut settings = service.snapshot().settings;
+            settings.language = language.into();
+            service.send(Command::Settings(settings));
+            lifecycle_tick(cx, 200).await;
+            cx.update(|cx| -> Result<()> {
+                ensure!(
+                    service.snapshot().settings.language == language,
+                    "language was not saved"
+                );
+                for kind in [Kind::Main, Kind::Settings, Kind::Welcome] {
+                    let (_, view) = cx
+                        .global::<Owner>()
+                        .windows
+                        .get(&kind)
+                        .context("language window missing")?;
+                    ensure!(
+                        view.read(cx).snapshot.settings.language == language,
+                        "open window did not update its language"
+                    );
+                }
+                Ok(())
+            })?;
+        }
+        service.send(Command::Settings(original));
+        lifecycle_tick(cx, 200).await;
+        std::fs::write(
+            output.join("language-switch-result.json"),
+            r#"{"passed":true,"languages":9,"existing_windows_updated":3,"restart_persistence":"covered_by_encrypted_store_test"}"#,
+        )?;
+        println!("UI-REVIEW LANGUAGE PASS: nine languages updated all three existing windows");
+        return Ok(());
     }
     if std::env::var("X_CLIPBOARD_UI_REVIEW_DORMANCY").as_deref() == Ok("1") {
         return check_dormancy(cx, service, output).await;

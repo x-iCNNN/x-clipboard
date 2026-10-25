@@ -1,0 +1,53 @@
+name: Publish Windows release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Validate tag and version
+        shell: pwsh
+        run: |
+          $version = ((cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages | Where-Object name -EQ 'x-clipboard').version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match Cargo.toml version' }
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked --no-default-features --lib
+      - name: Test installer and rollback
+        shell: pwsh
+        run: ./scripts/test-updater.ps1
+      - run: cargo build --locked --release --bins
+      - run: python scripts/fetch_pdfium.py --platform win-x64 --output target/release
+      - shell: pwsh
+        run: ./scripts/package-windows.ps1 -SkipBuild -NoUpx
+      - name: Verify packaged installer
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'x-clipboard-install-probe'
+          cargo run --locked --no-default-features --example installer_probe -- "dist/x-clipboard-$env:GITHUB_REF_NAME-windows-x64-setup.exe" $target
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged installation test failed' }
+          for ($i=0; $i -lt 100 -and (Test-Path "$target/x-clipboard.exe"); $i++) { Start-Sleep -Milliseconds 100 }
+          if (Test-Path "$target/x-clipboard.exe") { throw 'Uninstall did not remove the application' }
+          if ((Get-Content "$target/preserve-user-data.txt") -ne 'synthetic-preserve') { throw 'Uninstall changed user data' }
+          if (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\XClipboard') { throw 'Uninstall registration was not removed' }
+      - name: Publish verified release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Output 'Release already exists; preserving its assets.'; exit 0 }
+          $archive = "dist/x-clipboard-$env:GITHUB_REF_NAME-windows-x64.zip"
+          $setup = "dist/x-clipboard-$env:GITHUB_REF_NAME-windows-x64-setup.exe"
+          gh release create $env:GITHUB_REF_NAME $archive "$archive.sha256" $setup "$setup.sha256" --verify-tag --title "X Clipboard $env:GITHUB_REF_NAME" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publication failed' }

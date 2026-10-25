@@ -90,10 +90,17 @@ impl Desktop {
             cx,
         ));
         body = body
-            .child(section("语言", vec![setting_row(
-                "界面语言", "语言切换后立即生效并自动保存。",
-                self.language_picker("settings-language"), true, cx,
-            )], cx))
+            .child(section(
+                "语言",
+                vec![setting_row(
+                    "界面语言",
+                    "语言切换后立即生效并自动保存。",
+                    self.language_picker("settings-language"),
+                    true,
+                    cx,
+                )],
+                cx,
+            ))
             .child(section("启动与窗口", rows, cx))
             .child(section(
                 "记录与反馈",
@@ -118,7 +125,10 @@ impl Desktop {
             ))
             .child(notice(
                 IconName::Keyboard,
-                &message("使用 {} 唤起快捷面板。点击记录上的预览按钮，查看完整内容。", &[("", display_shortcut(&s.shortcut))]),
+                &message(
+                    "使用 {} 唤起快捷面板。点击记录上的预览按钮，查看完整内容。",
+                    &[("", display_shortcut(&s.shortcut))],
+                ),
                 false,
                 cx,
             ));
@@ -449,7 +459,10 @@ impl Desktop {
                 |d| {
                     d.child(notice(
                         IconName::Shield,
-                        &message("置顶与收藏占用 {}，不会自动删除。请提高上限，或手动整理受保护记录。", &[("", bytes_label(protected))]),
+                        &message(
+                            "置顶与收藏占用 {}，不会自动删除。请提高上限，或手动整理受保护记录。",
+                            &[("", bytes_label(protected))],
+                        ),
                         true,
                         cx,
                     ))
@@ -719,7 +732,7 @@ impl Desktop {
     }
 
     #[inline(never)]
-    fn about_page(&self, cx: &App) -> AnyElement {
+    fn about_page(&self, cx: &mut Context<Self>) -> AnyElement {
         let platform = if cfg!(windows) {
             "Windows 10 / 11"
         } else if cfg!(target_os = "macos") {
@@ -750,8 +763,9 @@ impl Desktop {
                             .child("X Clipboard"),
                     )
                     .child(value("每一次复制，都有迹可循。", cx))
-                    .child(badge("0.1.0 · 原生测试版", false, cx)),
+                    .child(badge(env!("CARGO_PKG_VERSION"), false, cx)),
             )
+            .child(self.update_section(cx))
             .child(section(
                 "应用信息",
                 vec![
@@ -805,6 +819,75 @@ impl Desktop {
                     .child("DESIGNED FOR YOUR EVERYDAY FLOW."),
             )
             .into_any_element()
+    }
+
+    #[inline(never)]
+    fn update_section(&self, cx: &mut Context<Self>) -> AnyElement {
+        use x_clipboard::updater::{RELEASES_URL, SUPPORTED, State};
+        let state = cx.global::<Owner>().updater.snapshot().1;
+        let label = match &state {
+            State::Available(_) => "下载更新",
+            State::Ready(_) => "立即重启更新",
+            _ => "检查更新",
+        };
+        let status = if SUPPORTED {
+            state.message()
+        } else {
+            "此平台请从 GitHub 下载新版本。".into()
+        };
+        let control = Button::new("check-update")
+            .small()
+            .label(tr(label))
+            .disabled(!SUPPORTED || state.busy() || cx.global::<Owner>().update_armed)
+            .on_click(|_, _, cx| {
+                if cx.global::<Owner>().update_armed {
+                    return;
+                }
+                let state = cx.global::<Owner>().updater.snapshot().1;
+                match state {
+                    State::Available(_) => cx.global::<Owner>().updater.download(),
+                    State::Ready(_) => match cx.global::<Owner>().updater.install(true) {
+                        Ok(true) => {
+                            cx.global_mut::<Owner>().update_armed = true;
+                            cx.global::<Owner>().service.send(Command::Shutdown);
+                        }
+                        Err(e) => cx
+                            .global::<Owner>()
+                            .service
+                            .error(format!("更新安装失败：{e:#}")),
+                        _ => {}
+                    },
+                    _ => cx.global::<Owner>().updater.check(false),
+                }
+            })
+            .into_any_element();
+        let mut rows = vec![setting_row("应用更新", &status, control, false, cx)];
+        if SUPPORTED {
+            rows.push(self.switch_row(
+                "自动更新",
+                "启动后及每 6 小时检查并下载，正常退出后安装。",
+                self.snapshot.settings.auto_update,
+                |s, on| s.auto_update = on,
+                false,
+                cx,
+            ));
+        }
+        rows.push(setting_row(
+            "GitHub 发布",
+            "查看版本说明与下载文件。",
+            Button::new("github-releases")
+                .small()
+                .label("GitHub Releases")
+                .on_click(|_, _, cx| {
+                    if let Err(e) = open::that(RELEASES_URL) {
+                        cx.global::<Owner>().service.error(e.to_string());
+                    }
+                })
+                .into_any_element(),
+            true,
+            cx,
+        ));
+        section("版本更新", rows, cx)
     }
 }
 

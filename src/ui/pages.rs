@@ -161,6 +161,8 @@ fn feature(icon: IconName, title: &str, desc: &str, cx: &App) -> AnyElement {
         .child(Icon::new(icon).size(px(20.)).text_color(accent(cx)))
         .child(
             div()
+                .flex_1()
+                .min_w_0()
                 .flex()
                 .flex_col()
                 .gap(px(4.))
@@ -172,6 +174,7 @@ fn feature(icon: IconName, title: &str, desc: &str, cx: &App) -> AnyElement {
                 )
                 .child(
                     div()
+                        .whitespace_normal()
                         .text_size(px(11.))
                         .text_color(cx.theme().muted_foreground)
                         .child(tr(desc).to_owned()),
@@ -255,13 +258,15 @@ impl Desktop {
             .dropdown_menu(move |mut menu, _, _| {
                 for &(language, name) in i18n::LANGUAGES {
                     let service = service.clone();
-                    menu = menu.item(PopupMenuItem::new(name)
-                        .checked(language == selected)
-                        .on_click(move |_, _, _| {
-                            let mut settings = service.snapshot().settings;
-                            settings.language = language.into();
-                            service.send(Command::Settings(settings));
-                        }));
+                    menu = menu.item(
+                        PopupMenuItem::new(name)
+                            .checked(language == selected)
+                            .on_click(move |_, _, _| {
+                                let mut settings = service.snapshot().settings;
+                                settings.language = language.into();
+                                service.send(Command::Settings(settings));
+                            }),
+                    );
                 }
                 menu
             })
@@ -492,7 +497,10 @@ impl Desktop {
                                     .tooltip(if supported {
                                         item.name.clone()
                                     } else {
-                                        message("{}（当前系统不支持显示，仍可插入）", &[("", item.name.clone())])
+                                        message(
+                                            "{}（当前系统不支持显示，仍可插入）",
+                                            &[("", item.name.clone())],
+                                        )
                                     })
                                     .accessibility_label(item.name.clone())
                                     .w(px(43.))

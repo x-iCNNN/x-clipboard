@@ -214,7 +214,10 @@ impl Service {
     }
     pub fn snapshot(&self) -> Snapshot {
         let mut state = self.state.lock().unwrap();
-        if state.error_expires_at.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+        if state
+            .error_expires_at
+            .is_some_and(|deadline| std::time::Instant::now() >= deadline)
+        {
             state.error = None;
             state.error_expires_at = None;
             state.revision += 1;
@@ -312,8 +315,11 @@ impl Service {
         };
         let shutdown = matches!(command, Command::Shutdown);
         if self.tx.try_send(command).is_err() {
-            if paste_target.is_some() { self.paste_error("操作队列已满，请稍后重试".into()); }
-            else { self.error("操作队列已满，请稍后重试".into()); }
+            if paste_target.is_some() {
+                self.paste_error("操作队列已满，请稍后重试".into());
+            } else {
+                self.error("操作队列已满，请稍后重试".into());
+            }
         } else if shutdown {
             self.state.lock().unwrap().quitting = true;
         }
@@ -356,7 +362,8 @@ impl Service {
     fn paste_error(&self, message: String) {
         let mut state = self.state.lock().unwrap();
         state.error = Some(message);
-        state.error_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+        state.error_expires_at =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
         state.revision += 1;
     }
     pub fn dismiss_error(&self) {
@@ -513,8 +520,11 @@ impl Service {
                             .ok();
                         failed_capture = Some(content);
                     }
-                    if paste_target.is_some() { self.paste_error(format!("密钥或存储不可用：{e:#}")); }
-                    else { self.error(format!("密钥或存储不可用：{e:#}")); }
+                    if paste_target.is_some() {
+                        self.paste_error(format!("密钥或存储不可用：{e:#}"));
+                    } else {
+                        self.error(format!("密钥或存储不可用：{e:#}"));
+                    }
                     continue;
                 }
             };
@@ -774,8 +784,11 @@ impl Service {
                     drop(state);
                     let _ = self.refresh(db);
                 }
-                if paste_target.is_some() { self.paste_error(format!("操作未完成：{e:#}")); }
-                else { self.error(format!("操作未完成：{e:#}")); }
+                if paste_target.is_some() {
+                    self.paste_error(format!("操作未完成：{e:#}"));
+                } else {
+                    self.error(format!("操作未完成：{e:#}"));
+                }
             } else if let Some(notice) = notice {
                 self.status(notice);
             }
@@ -798,7 +811,9 @@ mod tests {
             Ok(())
         }
         fn paste(&self, target: usize) -> anyhow::Result<()> {
-            if target == usize::MAX - 1 { anyhow::bail!("synthetic invalid transient target"); }
+            if target == usize::MAX - 1 {
+                anyhow::bail!("synthetic invalid transient target");
+            }
             if target == usize::MAX {
                 std::thread::sleep(std::time::Duration::from_millis(300));
             }
@@ -1041,12 +1056,22 @@ mod tests {
             state.thumbnails.contains_key("missing-thumbnail-49")
         });
         assert_eq!(thumbnails.thumbnails.len(), 48);
-        service.send(Command::Text("synthetic failed paste".into(), Some(usize::MAX - 1)));
+        service.send(Command::Text(
+            "synthetic failed paste".into(),
+            Some(usize::MAX - 1),
+        ));
         let failed = wait(&service, |state| state.error.is_some());
-        assert!(service.ui_events.try_recv().is_err(), "paste failure must not reopen the quick panel");
+        assert!(
+            service.ui_events.try_recv().is_err(),
+            "paste failure must not reopen the quick panel"
+        );
         assert!(failed.error_expires_at.is_some());
-        service.state.lock().unwrap().error_expires_at = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
-        assert!(service.snapshot().error.is_none(), "transient paste notice must expire");
+        service.state.lock().unwrap().error_expires_at =
+            Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+        assert!(
+            service.snapshot().error.is_none(),
+            "transient paste notice must expire"
+        );
         service.send(Command::TogglePause);
         service.send(Command::TogglePause);
         wait(&service, |state| {

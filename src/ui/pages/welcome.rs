@@ -56,8 +56,14 @@ impl Desktop {
                     .text_color(cx.theme().muted_foreground)
                     .child(tr("留住内容，\n继续专注。")),
             )
-            .child(div().mt(px(14.)).w_full().flex().justify_center()
-                .child(self.language_picker("welcome-language")))
+            .child(
+                div()
+                    .mt(px(14.))
+                    .w_full()
+                    .flex()
+                    .justify_center()
+                    .child(self.language_picker("welcome-language")),
+            )
             .child(
                 div().mt(px(32.)).flex().flex_col().gap(px(18.)).children(
                     ["欢迎使用", "设置快捷键", "系统能力", "本地保护"]
@@ -107,7 +113,13 @@ impl Desktop {
                                             (i + 1).to_string()
                                         }),
                                 )
-                                .child(tr(label).to_owned())
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .whitespace_normal()
+                                        .child(tr(label)),
+                                )
                         }),
                 ),
             )

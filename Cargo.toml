@@ -1,6 +1,6 @@
 [package]
 name = "x-clipboard"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.92"
 publish = false
@@ -30,6 +30,9 @@ ammonia = "4"
 open = "5"
 url = "2"
 fs2 = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+semver = "1"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 gpui-kit = { version = "=0.8.0", optional = true }
 tray-icon = { version = "0.21", optional = true }
 global-hotkey = { version = "0.7", optional = true }
@@ -75,6 +78,11 @@ codegen-units = 1
 [[bin]]
 name = "x-clipboard"
 path = "src/main.rs"
+required-features = ["native"]
+
+[[bin]]
+name = "x-clipboard-setup"
+path = "src/setup.rs"
 required-features = ["native"]
 
 [build-dependencies]

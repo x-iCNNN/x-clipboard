@@ -80,6 +80,7 @@ impl Desktop {
                     .px_3()
                     .rounded(px(7.))
                     .accessibility_label(tr(label).to_owned())
+                    .tooltip(tr(label).to_owned())
                     .text_color(if active {
                         accent(cx)
                     } else {
@@ -93,20 +94,27 @@ impl Desktop {
                             .items_center()
                             .gap_3()
                             .when(route != "symbols", |d| {
-                                d.child(Icon::new(icon).size(px(18.)))
+                                d.child(Icon::new(icon).size(px(18.)).flex_shrink_0())
                             })
                             .when(route == "symbols", |d| {
                                 d.child(div().w(px(18.)).text_size(px(20.)).child("Σ"))
                             })
                             .child(
                                 div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
                                     .text_size(px(13.))
                                     .when(active, |d| d.font_weight(FontWeight::SEMIBOLD))
                                     .child(tr(label).to_owned()),
                             )
-                            .child(div().flex_1())
                             .when_some(count, |d, count| {
-                                d.child(div().text_size(px(10.)).child(count.to_string()))
+                                d.child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .text_size(px(10.))
+                                        .child(count.to_string()),
+                                )
                             }),
                     )
                     .on_click(cx.listener(move |t, _, _, cx| t.nav(route, cx))),
@@ -242,7 +250,10 @@ impl Desktop {
                     )
                     .child(div().flex_1())
                     .child(Icon::new(IconName::Clipboard).size(px(13.)))
-                    .child(message("已保存 {} 条记录", &[("", self.snapshot.entries.len().to_string())]))
+                    .child(message(
+                        "已保存 {} 条记录",
+                        &[("", self.snapshot.entries.len().to_string())],
+                    ))
                     .child(div().flex_1())
                     .child(Icon::new(IconName::Lock).size(px(13.)))
                     .child(if f32::from(window.viewport_size().width) < 1000. {

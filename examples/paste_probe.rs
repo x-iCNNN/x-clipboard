@@ -133,7 +133,11 @@ fn main() -> anyhow::Result<()> {
         let saved = platform::foreground();
         let panel = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
-            if search_focus { w!("EDIT") } else { w!("STATIC") },
+            if search_focus {
+                w!("EDIT")
+            } else {
+                w!("STATIC")
+            },
             w!("X Clipboard · own panel probe"),
             WS_OVERLAPPEDWINDOW,
             180,
@@ -184,22 +188,35 @@ fn main() -> anyhow::Result<()> {
                 for character in "abc 中文".encode_utf16() {
                     let input = [false, true].map(|up| INPUT {
                         r#type: INPUT_KEYBOARD,
-                        Anonymous: INPUT_0 { ki: KEYBDINPUT {
-                            wScan: character,
-                            dwFlags: KEYEVENTF_UNICODE | if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) },
-                            ..Default::default()
-                        }},
+                        Anonymous: INPUT_0 {
+                            ki: KEYBDINPUT {
+                                wScan: character,
+                                dwFlags: KEYEVENTF_UNICODE
+                                    | if up {
+                                        KEYEVENTF_KEYUP
+                                    } else {
+                                        KEYBD_EVENT_FLAGS(0)
+                                    },
+                                ..Default::default()
+                            },
+                        },
                     });
-                    anyhow::ensure!(SendInput(&input, std::mem::size_of::<INPUT>() as i32) == 2,
-                        "cannot inject owned-window search probe input");
+                    anyhow::ensure!(
+                        SendInput(&input, std::mem::size_of::<INPUT>() as i32) == 2,
+                        "cannot inject owned-window search probe input"
+                    );
                     pump(Duration::from_millis(20));
                 }
                 let mut text = [0u16; 64];
                 let n = GetWindowTextW(panel, &mut text);
-                anyhow::ensure!(String::from_utf16_lossy(&text[..n as usize]) == "abc 中文",
-                    "nonactivating search did not receive committed text");
-                anyhow::ensure!(GetWindowTextLengthW(editor) == 0,
-                    "search input leaked into the original target");
+                anyhow::ensure!(
+                    String::from_utf16_lossy(&text[..n as usize]) == "abc 中文",
+                    "nonactivating search did not receive committed text"
+                );
+                anyhow::ensure!(
+                    GetWindowTextLengthW(editor) == 0,
+                    "search input leaked into the original target"
+                );
             }
         } else {
             let _ = ShowWindow(panel, SW_SHOW);

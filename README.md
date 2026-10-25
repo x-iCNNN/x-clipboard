@@ -73,6 +73,12 @@ The repository includes native Windows captures and a browsable design gallery. 
 
 ## Getting started / 开始使用
 
+### Install and update / 安装与更新
+
+Download the Windows x64 custom installer (`*-setup.exe`) or portable ZIP from [GitHub Releases](https://github.com/x-iCNNN/x-clipboard/releases). The installer supports a custom directory, shortcuts, and uninstall. Use **Settings → About** for manual updates or background automatic updates; automatic installation happens after a normal tray exit. See [installation and updates](docs/UPDATES.md).
+
+从 [GitHub Releases](https://github.com/x-iCNNN/x-clipboard/releases) 下载 Windows x64 自定义安装版（`*-setup.exe`）或便携 ZIP。安装版支持选择目录、快捷方式与卸载；在 **设置 → 关于** 手动更新或开关自动更新。自动更新后台下载，在从托盘正常退出后安装。详见[安装与更新说明](docs/UPDATES.md)。v0.1.0 需要手动安装本次版本，之后可在线更新。
+
 ### Requirements / 环境要求
 
 - Rust **1.92 or newer** and the platform's native build toolchain.

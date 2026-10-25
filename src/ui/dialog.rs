@@ -72,7 +72,10 @@ impl Desktop {
                         div()
                             .text_size(px(12.))
                             .text_color(cx.theme().muted_foreground)
-                            .child(message("将删除 {count} 条历史记录，此操作无法撤销。原始文件不会被删除。", &[("count", count.to_string())])),
+                            .child(message(
+                                "将删除 {count} 条历史记录，此操作无法撤销。原始文件不会被删除。",
+                                &[("count", count.to_string())],
+                            )),
                     )
                     .when(clear, |d| {
                         d.child(
@@ -94,9 +97,15 @@ impl Desktop {
                                 .text_size(px(12.))
                                 .text_color(warning(cx))
                                 .child(if clear && !self.clear_protected {
-                                    message("保留 {protected} 条置顶或收藏记录。", &[("protected", protected.to_string())])
+                                    message(
+                                        "保留 {protected} 条置顶或收藏记录。",
+                                        &[("protected", protected.to_string())],
+                                    )
                                 } else {
-                                    message("其中包含 {protected} 条置顶或收藏记录，请确认后再删除。", &[("protected", protected.to_string())])
+                                    message(
+                                        "其中包含 {protected} 条置顶或收藏记录，请确认后再删除。",
+                                        &[("protected", protected.to_string())],
+                                    )
                                 }),
                         )
                     })

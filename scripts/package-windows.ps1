@@ -2,20 +2,24 @@
 param(
     [string]$Upx = 'D:\devTools\upx\upx.exe',
     [switch]$SkipBuild,
-    [switch]$NoUpx
+    [switch]$NoUpx,
+    [string]$RuntimeDirectory = 'target\release'
 )
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path -Parent $PSScriptRoot
 Push-Location $workspace
 try {
     if (-not $SkipBuild) {
-        & cargo build --locked --release --bin x-clipboard
+        & cargo build --locked --release --bins
         if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
     }
     if (-not $NoUpx -and -not (Test-Path -LiteralPath $Upx)) { throw "UPX not found: $Upx" }
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $metadata = & cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot read Cargo version' }
+    $version = ($metadata.packages | Where-Object name -EQ 'x-clipboard').version
     $variant = if ($NoUpx) { 'release' } else { 'upx' }
-    $stage = Join-Path $workspace "dist\x-clipboard-0.1.0-windows-x64-$variant-$stamp"
+    $stage = Join-Path $workspace "dist\x-clipboard-v$version-windows-x64-$variant-$stamp"
     New-Item -ItemType Directory -Path $stage | Out-Null
     $source = Join-Path $workspace 'target\release\x-clipboard.exe'
     Copy-Item -LiteralPath $source -Destination $stage
@@ -31,10 +35,10 @@ try {
     if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $originalHash) {
         throw 'Original Release EXE was modified'
     }
-    $runtime = Join-Path $workspace 'dist\windows-x64-preview'
+    $runtime = Join-Path $workspace $RuntimeDirectory
     Copy-Item -LiteralPath (Join-Path $runtime 'pdfium.dll') -Destination $stage
     Copy-Item -LiteralPath (Join-Path $runtime 'licenses') -Destination $stage -Recurse
-    foreach ($document in @('THIRD-PARTY.md', 'WINDOW-FIXES.md', 'MEMORY-AND-PACKAGING.md')) {
+    foreach ($document in @('THIRD-PARTY.md')) {
         Copy-Item -LiteralPath (Join-Path $workspace "docs\$document") -Destination $stage
     }
     @'
@@ -44,9 +48,10 @@ Run x-clipboard.exe. Keep pdfium.dll beside the executable for PDF previews.
 Settings and encrypted history use the normal per-user application data directory.
 See build-info.json for EXE compression. PDFium is distributed unchanged.
 No user history, database keys, or test fixtures are included.
-This is a local build, not an installer or remotely published release.
+Use Settings > About for manual or automatic updates from GitHub Releases.
 '@ | Set-Content -LiteralPath (Join-Path $stage 'README.txt') -Encoding utf8
     [ordered]@{
+        version = $version
         built_at = (Get-Date).ToString('o')
         profile = 'release; opt-level=s; thin LTO; codegen-units=1; stripped'
         compression = $(if ($NoUpx) { 'none' } else { 'UPX --best --lzma; upx -t passed' })
@@ -59,8 +64,11 @@ This is a local build, not an installer or remotely published release.
         $relative = [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/')
         '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $relative
     } | Set-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt') -Encoding utf8
-    $archive = "$stage.zip"
-    Compress-Archive -LiteralPath $stage -DestinationPath $archive -CompressionLevel Optimal
+    $archive = Join-Path $workspace "dist\x-clipboard-v$version-windows-x64.zip"
+    if (Test-Path -LiteralPath $archive) { throw "Archive already exists: $archive" }
+    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -CompressionLevel Optimal
+    $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$archiveHash  $([IO.Path]::GetFileName($archive))" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [IO.Compression.ZipFile]::OpenRead($archive)
     try {
@@ -77,4 +85,18 @@ This is a local build, not an installer or remotely published release.
     Write-Output "RELEASE_EXE_BYTES=$originalSize"
     Write-Output "UPX_EXE_BYTES=$((Get-Item -LiteralPath $packed).Length)"
     Write-Output "ZIP_BYTES=$((Get-Item -LiteralPath $archive).Length)"
+    $setup = Join-Path $workspace "dist\x-clipboard-v$version-windows-x64-setup.exe"
+    if (Test-Path -LiteralPath $setup) { throw "Installer already exists: $setup" }
+    Copy-Item -LiteralPath (Join-Path $workspace 'target\release\x-clipboard-setup.exe') -Destination $setup
+    $bundle = [IO.File]::Open($setup, [IO.FileMode]::Append, [IO.FileAccess]::Write)
+    $payloadStream = [IO.File]::OpenRead($archive)
+    try {
+        $payloadStream.CopyTo($bundle)
+        $bundle.Write([Convert]::FromHexString($archiveHash))
+        $bundle.Write([BitConverter]::GetBytes([int64]$payloadStream.Length))
+        $bundle.Write([Text.Encoding]::ASCII.GetBytes('XCLIPBOARDSETUP!'))
+    } finally { $payloadStream.Dispose(); $bundle.Dispose() }
+    $setupHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$setupHash  $([IO.Path]::GetFileName($setup))" | Set-Content -LiteralPath "$setup.sha256" -Encoding ascii
+    Write-Output "INSTALLER=$setup"
 } finally { Pop-Location }

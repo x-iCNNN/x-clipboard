@@ -117,7 +117,10 @@ impl Desktop {
                     .text_color(cx.theme().muted_foreground)
                     .font_weight(FontWeight::MEDIUM)
                     .truncate()
-                    .child(message("{type_name}预览", &[("type_name", tr(type_name).into())])),
+                    .child(message(
+                        "{type_name}预览",
+                        &[("type_name", tr(type_name).into())],
+                    )),
             )
             .child(
                 div()
@@ -405,12 +408,15 @@ impl Desktop {
             .text_color(cx.theme().muted_foreground)
             .child(message(
                 "保留格式：{}",
-                &[("", preview
-                    .formats
-                    .iter()
-                    .map(|f| tr(format_label(f)))
-                    .collect::<Vec<_>>()
-                    .join(" · "))]
+                &[(
+                    "",
+                    preview
+                        .formats
+                        .iter()
+                        .map(|f| tr(format_label(f)))
+                        .collect::<Vec<_>>()
+                        .join(" · "),
+                )],
             ))
             .into_any_element()
     }

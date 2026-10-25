@@ -28,7 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 use x_clipboard::{
-    i18n::{self, tr, message},
+    i18n::{self, message, tr},
     model::{Entry, Settings},
     platform::{self, PlatformEvent},
     service::{Command, Service, Snapshot},
@@ -44,10 +44,15 @@ enum Kind {
 }
 struct Owner {
     service: Service,
+    updater: x_clipboard::updater::Updater,
+    update_revision: u64,
+    update_armed: bool,
     windows: HashMap<Kind, (AnyWindowHandle, Entity<Desktop>)>,
     hidden_since: HashMap<Kind, Instant>,
     ui_initialized: bool,
     _tray: tray_icon::TrayIcon,
+    #[cfg(not(windows))]
+    native_tray_state: Option<(String, bool)>,
     target: usize,
     #[cfg(not(windows))]
     hotkeys: Option<global_hotkey::GlobalHotKeyManager>,
@@ -69,11 +74,16 @@ pub fn run(service: Service) -> anyhow::Result<()> {
                 }
             };
             cx.set_global(Owner {
+                updater: x_clipboard::updater::Updater::new(service.root.as_ref().clone()),
+                update_revision: 0,
+                update_armed: false,
                 service: service.clone(),
                 windows: HashMap::new(),
                 hidden_since: HashMap::new(),
                 ui_initialized: false,
                 _tray: tray,
+                #[cfg(not(windows))]
+                native_tray_state: None,
                 target: 0,
                 #[cfg(not(windows))]
                 hotkeys: global_hotkey::GlobalHotKeyManager::new().ok(),
@@ -136,37 +146,57 @@ pub fn run(service: Service) -> anyhow::Result<()> {
         });
     Ok(())
 }
+#[cfg(not(windows))]
+fn native_tray_menu(cx: &App, paused: bool) -> anyhow::Result<tray_icon::menu::Menu> {
+    use tray_icon::menu::*;
+    let menu = Menu::new();
+    for (id, label, icon) in [
+        ("quick", "打开快捷面板", IconName::Clipboard),
+        ("manager", "管理历史", IconName::LayoutGrid),
+        (
+            "pause",
+            if paused {
+                "开启记录"
+            } else {
+                "暂停记录"
+            },
+            if paused {
+                IconName::Play
+            } else {
+                IconName::Pause
+            },
+        ),
+        ("settings", "设置", IconName::Settings),
+        ("quit", "退出 X Clipboard", IconName::Power),
+    ] {
+        let svg = gpui_kit::assets::AllAssets
+            .load(&icon.path())?
+            .ok_or_else(|| anyhow::anyhow!("托盘菜单图标缺失：{id}"))?;
+        let renderer = cx.svg_renderer();
+        let parsed = renderer.parse_svg(&svg)?;
+        let image = renderer.render_parsed(
+            &parsed,
+            SvgSize::ExactSize(size(DevicePixels(16), DevicePixels(16))),
+        )?;
+        let mut rgba = image.as_bytes(0).unwrap().to_vec();
+        for pixel in rgba.chunks_exact_mut(4) {
+            pixel[..3].copy_from_slice(&[0xa5, 0x6c, 0x00]);
+        }
+        let icon = tray_icon::menu::Icon::from_rgba(rgba, 16, 16)?;
+        menu.append(&IconMenuItem::with_id(
+            id,
+            tr(label),
+            true,
+            Some(icon),
+            None,
+        ))?;
+    }
+    Ok(menu)
+}
 fn tray(cx: &App) -> anyhow::Result<tray_icon::TrayIcon> {
     use tray_icon::{Icon, TrayIconBuilder};
     #[cfg(not(windows))]
-    let menu = {
-        use tray_icon::menu::*;
-        let menu = Menu::new();
-        for (id, label, icon) in [
-            ("quick", "打开快捷面板", IconName::Clipboard),
-            ("manager", "管理历史", IconName::LayoutGrid),
-            ("pause", "暂停 / 恢复记录", IconName::Pause),
-            ("settings", "设置", IconName::Settings),
-            ("quit", "退出 X Clipboard", IconName::Power),
-        ] {
-            let svg = gpui_kit::assets::AllAssets
-                .load(&icon.path())?
-                .ok_or_else(|| anyhow::anyhow!("托盘菜单图标缺失：{id}"))?;
-            let renderer = cx.svg_renderer();
-            let parsed = renderer.parse_svg(&svg)?;
-            let image = renderer.render_parsed(
-                &parsed,
-                SvgSize::ExactSize(size(DevicePixels(16), DevicePixels(16))),
-            )?;
-            let mut rgba = image.as_bytes(0).unwrap().to_vec();
-            for pixel in rgba.chunks_exact_mut(4) {
-                pixel[..3].copy_from_slice(&[0xa5, 0x6c, 0x00]);
-            }
-            let icon = tray_icon::menu::Icon::from_rgba(rgba, 16, 16)?;
-            menu.append(&IconMenuItem::with_id(id, label, true, Some(icon), None))?;
-        }
-        menu
-    };
+    let menu = native_tray_menu(cx, false)?;
     #[cfg(windows)]
     let _ = cx;
     let pixels = image::load_from_memory(include_bytes!("../assets/branding/app-icon-32.png"))?
@@ -183,8 +213,52 @@ fn tray(cx: &App) -> anyhow::Result<tray_icon::TrayIcon> {
 }
 fn poll(cx: &mut App) {
     if cx.global::<Owner>().service.snapshot().shutdown_complete {
+        if !cx.global::<Owner>().update_armed
+            && cx.global::<Owner>().service.snapshot().settings.auto_update
+            && let Err(error) = cx.global::<Owner>().updater.install(false)
+        {
+            cx.global::<Owner>()
+                .service
+                .error(format!("更新安装失败：{error:#}"));
+            eprintln!("更新安装失败：{error:#}");
+        }
         cx.quit();
         return;
+    }
+    let snapshot = cx.global::<Owner>().service.snapshot();
+    if cx.global::<Owner>().update_armed && !snapshot.quitting {
+        cx.global::<Owner>().service.send(Command::Shutdown);
+    }
+    if snapshot.ready && !snapshot.quitting && !std::env::args().any(|a| a == "--ui-review") {
+        cx.global_mut::<Owner>()
+            .updater
+            .tick(snapshot.settings.auto_update);
+    }
+    let revision = cx.global::<Owner>().updater.snapshot().0;
+    if revision != cx.global::<Owner>().update_revision {
+        cx.global_mut::<Owner>().update_revision = revision;
+        let views: Vec<_> = cx
+            .global::<Owner>()
+            .windows
+            .values()
+            .map(|(_, v)| v.clone())
+            .collect();
+        for view in views {
+            view.update(cx, |_, cx| cx.notify());
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let settings = cx.global::<Owner>().service.snapshot().settings;
+        let state = (settings.language.clone(), settings.paused);
+        if cx.global::<Owner>().native_tray_state.as_ref() != Some(&state) {
+            i18n::set_locale(&settings.language);
+            match native_tray_menu(cx, settings.paused) {
+                Ok(menu) => cx.global::<Owner>()._tray.set_menu(Some(Box::new(menu))),
+                Err(error) => cx.global::<Owner>().service.error(error.to_string()),
+            }
+            cx.global_mut::<Owner>().native_tray_state = Some(state);
+        }
     }
     while let Ok(event) = cx.global::<Owner>().service.ui_events.try_recv() {
         match event {
@@ -338,7 +412,8 @@ fn open_window_now(kind: Kind, cx: &mut App) {
                 if kind == Kind::Quick {
                     this.route = "all";
                     this.filter = "all";
-                    this.search.update(cx, |input, cx| input.set_value("", window, cx));
+                    this.search
+                        .update(cx, |input, cx| input.set_value("", window, cx));
                 }
                 this.sync(window, cx);
                 if kind == Kind::Welcome {
@@ -455,7 +530,7 @@ fn show_initial_quick(handle: AnyWindowHandle, position: String, cx: &mut App) {
     let resized = handle
         .update(cx, |_, window, _| -> anyhow::Result<()> {
             platform::prepare_quick_panel(native(window), target)?;
-            window.resize(size(px(QUICK_WIDTH), px(QUICK_HEIGHT)));
+            resize_quick_window(window, QUICK_WIDTH, QUICK_HEIGHT);
             Ok(())
         })
         .and_then(|result| result);
@@ -518,6 +593,12 @@ fn hide(window: &mut Window, cx: &mut App) {
     platform::hide_window(native(window));
     #[cfg(not(windows))]
     window.minimize_window();
+}
+fn resize_quick_window(window: &mut Window, width: f32, height: f32) {
+    #[cfg(windows)]
+    platform::resize_quick_panel(native(window), width, height, window.scale_factor());
+    #[cfg(not(windows))]
+    window.resize(size(px(width), px(height)));
 }
 fn reveal(window: &mut Window, kind: Kind, cx: &mut App) {
     #[cfg(windows)]
@@ -644,8 +725,12 @@ impl Desktop {
             window,
             |this, _, event: &InputEvent, window, cx| {
                 #[cfg(windows)]
-                if this.kind == Kind::Quick && matches!(event, InputEvent::Focus | InputEvent::Blur) {
-                    platform::set_quick_search_mode(native(window), matches!(event, InputEvent::Focus));
+                if this.kind == Kind::Quick && matches!(event, InputEvent::Focus | InputEvent::Blur)
+                {
+                    platform::set_quick_search_mode(
+                        native(window),
+                        matches!(event, InputEvent::Focus),
+                    );
                 }
                 #[cfg(not(windows))]
                 let _ = window;
@@ -732,10 +817,12 @@ impl Desktop {
         }
         if snapshot.settings.language != self.snapshot.settings.language {
             apply_language(&snapshot.settings.language);
-            self.search.update(cx, |input, cx| input.set_placeholder(
-                tr("搜索内容、文件名称或来源…"), window, cx));
-            self.excluded.update(cx, |input, cx| input.set_placeholder(
-                tr("例如：KeePass.exe, 1Password.exe"), window, cx));
+            self.search.update(cx, |input, cx| {
+                input.set_placeholder(tr("搜索内容、文件名称或来源…"), window, cx)
+            });
+            self.excluded.update(cx, |input, cx| {
+                input.set_placeholder(tr("例如：KeePass.exe, 1Password.exe"), window, cx)
+            });
         }
         self.snapshot = snapshot;
         self.thumbnails.retain(|id, image| {
@@ -1125,7 +1212,7 @@ impl Desktop {
             } else if self.preview_open {
                 self.preview_open = false;
                 if self.kind == Kind::Quick {
-                    window.resize(size(px(QUICK_WIDTH), px(QUICK_HEIGHT)));
+                    resize_quick_window(window, QUICK_WIDTH, QUICK_HEIGHT);
                 }
             } else {
                 hide(window, cx);
@@ -1189,6 +1276,13 @@ impl Desktop {
 }
 impl Render for Desktop {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(windows)]
+        if self.kind == Kind::Quick {
+            platform::set_quick_search_mode(
+                native(window),
+                self.search.read(cx).focus_handle(cx).is_focused(window),
+            );
+        }
         let placeholder = tr(match self.route {
             "emoji" => "搜索表情名称或关键词…",
             "symbols" => "搜索符号名称或关键词…",
@@ -1479,12 +1573,22 @@ fn is_current_navigation(kind: Kind, route: &str, action: &str) -> bool {
 }
 fn settings_menu_name(route: &str) -> &'static str {
     match route {
-        "appearance" => "外观设置", "shortcuts" => "快捷键", "storage" => "本地存储",
-        "privacy" => "隐私保护", "sync" => "同步", "about" => "关于", _ => "通用设置",
+        "appearance" => "外观设置",
+        "shortcuts" => "快捷键",
+        "storage" => "本地存储",
+        "privacy" => "隐私保护",
+        "sync" => "同步",
+        "about" => "关于",
+        _ => "通用设置",
     }
 }
 fn matches_filter(filter: &str, entry: &Entry) -> bool {
-    match filter { "all" => true, "pinned" => entry.pinned, "favorites" => entry.favorite, kind => entry.kind == kind }
+    match filter {
+        "all" => true,
+        "pinned" => entry.pinned,
+        "favorites" => entry.favorite,
+        kind => entry.kind == kind,
+    }
 }
 
 fn menu_action(

@@ -33,7 +33,19 @@ static QUICK_KEYS: AtomicU32 = AtomicU32::new(0);
 static QUICK_SEARCH: AtomicBool = AtomicBool::new(false);
 static SEARCH_KEYS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 const SEARCH_KEY_MESSAGE: u32 = WM_APP + 0x584;
+const QUICK_RESIZE_MESSAGE: u32 = WM_APP + 0x585;
 static SEARCH_MESSAGE_HOOK: AtomicUsize = AtomicUsize::new(0);
+static HOOK_MODIFIERS: AtomicU32 = AtomicU32::new(0);
+const MODIFIER_KEYS: [VIRTUAL_KEY; 8] = [
+    VK_LCONTROL,
+    VK_RCONTROL,
+    VK_LMENU,
+    VK_RMENU,
+    VK_LSHIFT,
+    VK_RSHIFT,
+    VK_LWIN,
+    VK_RWIN,
+];
 
 #[derive(Clone, Copy)]
 struct PasteFocus {
@@ -89,6 +101,17 @@ impl PlatformClipboard {
                         Some(instance.into()),
                         0,
                     )?;
+                    let held = MODIFIER_KEYS
+                        .iter()
+                        .enumerate()
+                        .fold(0, |mask, (bit, key)| {
+                            mask | if GetAsyncKeyState(key.0 as i32) < 0 {
+                                1 << bit
+                            } else {
+                                0
+                            }
+                        });
+                    HOOK_MODIFIERS.store(held, Ordering::Release);
                     OWNER.store(hwnd.0 as usize, Ordering::Release);
                     Ok((hwnd, hook))
                 })();
@@ -145,30 +168,61 @@ unsafe extern "system" fn keyboard_hook(code: i32, w: WPARAM, l: LPARAM) -> LRES
         let data = unsafe { &*(l.0 as *const KBDLLHOOKSTRUCT) };
         if data.dwExtraInfo != INPUT_ORIGIN {
             let down = matches!(w.0 as u32, WM_KEYDOWN | WM_SYSKEYDOWN);
+            // Consumed modifier events do not update GetAsyncKeyState. Track both
+            // sides explicitly so Ctrl+A/C/V and Shift selection still work.
+            let modifier = MODIFIER_KEYS
+                .iter()
+                .position(|key| key.0 as u32 == data.vkCode)
+                .or(match data.vkCode as u16 {
+                    value if value == VK_CONTROL.0 => Some(0),
+                    value if value == VK_MENU.0 => Some(2),
+                    value if value == VK_SHIFT.0 => Some(4),
+                    _ => None,
+                });
+            if let Some(bit) = modifier {
+                if down {
+                    HOOK_MODIFIERS.fetch_or(1 << bit, Ordering::AcqRel);
+                } else {
+                    HOOK_MODIFIERS.fetch_and(!(1 << bit), Ordering::AcqRel);
+                }
+            }
+            let held = HOOK_MODIFIERS.load(Ordering::Acquire);
+            let modifiers = (((held & 3 != 0) as usize) << 8)
+                | (((held & 12 != 0) as usize) << 9)
+                | (((held & 48 != 0) as usize) << 10)
+                | (((held & 192 != 0) as usize) << 11);
             let vk = data.vkCode as usize;
             if vk < 256 {
                 let bit = 1u64 << (vk % 64);
-                let captured = !down && SEARCH_KEYS[vk / 64].fetch_and(!bit, Ordering::AcqRel) & bit != 0;
+                let captured =
+                    !down && SEARCH_KEYS[vk / 64].fetch_and(!bit, Ordering::AcqRel) & bit != 0;
                 let panel = QUICK_PANEL.load(Ordering::Acquire);
-                let pressed = |key: VIRTUAL_KEY| unsafe { GetAsyncKeyState(key.0 as i32) < 0 };
-                let modifiers = ((pressed(VK_CONTROL) as usize) << 8)
-                    | ((pressed(VK_MENU) as usize) << 9)
-                    | ((pressed(VK_SHIFT) as usize) << 10)
-                    | (((pressed(VK_LWIN) || pressed(VK_RWIN)) as usize) << 11);
                 let own_shortcut = data.vkCode == HOTKEY.load(Ordering::Acquire) & 255
                     && modifiers as u32 & 0xf00 == HOTKEY.load(Ordering::Acquire) & 0xf00;
-                if captured || (QUICK_SEARCH.load(Ordering::Acquire)
-                    && quick_panel_keeps_focus(panel)
-                    && unsafe { GetForegroundWindow().0 as usize } == QUICK_TARGET.load(Ordering::Acquire)
-                    && modifiers & 0x800 == 0 && !own_shortcut)
+                if captured
+                    || (QUICK_SEARCH.load(Ordering::Acquire)
+                        && quick_panel_keeps_focus(panel)
+                        && unsafe { GetForegroundWindow().0 as usize }
+                            == QUICK_TARGET.load(Ordering::Acquire)
+                        && modifiers & 0x800 == 0
+                        && !own_shortcut)
                 {
-                    if down { SEARCH_KEYS[vk / 64].fetch_or(bit, Ordering::AcqRel); }
-                    let flags = modifiers | ((!down as usize) << 12)
+                    if down {
+                        SEARCH_KEYS[vk / 64].fetch_or(bit, Ordering::AcqRel);
+                    }
+                    let flags = modifiers
+                        | ((!down as usize) << 12)
                         | (((data.flags.0 & LLKHF_EXTENDED.0 != 0) as usize) << 13);
                     // The hook only queues events. Text translation and GPUI input run on the UI thread.
                     if quick_panel_keeps_focus(panel) {
-                        let _ = unsafe { PostMessageW(Some(HWND(panel as *mut _)), SEARCH_KEY_MESSAGE,
-                            WPARAM(vk | flags), LPARAM(data.scanCode as isize)) };
+                        let _ = unsafe {
+                            PostMessageW(
+                                Some(HWND(panel as *mut _)),
+                                SEARCH_KEY_MESSAGE,
+                                WPARAM(vk | flags),
+                                LPARAM(data.scanCode as isize),
+                            )
+                        };
                     }
                     return LRESULT(1);
                 }
@@ -211,11 +265,7 @@ unsafe extern "system" fn keyboard_hook(code: i32, w: WPARAM, l: LPARAM) -> LRES
                 if !down && KEY_HELD.swap(false, Ordering::AcqRel) {
                     return LRESULT(1);
                 }
-                let pressed = |vk: VIRTUAL_KEY| unsafe { GetAsyncKeyState(vk.0 as i32) < 0 };
-                let mods = ((pressed(VK_CONTROL) as u32) * 0x100)
-                    | ((pressed(VK_MENU) as u32) * 0x200)
-                    | ((pressed(VK_SHIFT) as u32) * 0x400)
-                    | (((pressed(VK_LWIN) || pressed(VK_RWIN)) as u32) * 0x800);
+                let mods = modifiers as u32;
                 if down && mods == packed & 0xf00 {
                     if !KEY_HELD.swap(true, Ordering::AcqRel) {
                         dispatch(PlatformEvent::ShowQuick(foreground()));
@@ -771,13 +821,22 @@ unsafe extern "system" fn quick_panel_proc(
     _: usize,
 ) -> LRESULT {
     unsafe {
-        if message == WM_WINDOWPOSCHANGING
-            && l.0 != 0
-            && GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_NOACTIVATE.0 != 0
-        {
-            // GPUI's async resize uses SetWindowPos without SWP_NOACTIVATE.
-            // Guard initial layout, preview expansion and later native resizes too.
-            (*(l.0 as *mut WINDOWPOS)).flags |= SWP_NOACTIVATE;
+        if message == QUICK_RESIZE_MESSAGE {
+            let mut outer = RECT::default();
+            let mut client = RECT::default();
+            if GetWindowRect(hwnd, &mut outer).is_ok() && GetClientRect(hwnd, &mut client).is_ok() {
+                let _ = SetWindowPos(
+                    hwnd,
+                    None,
+                    0,
+                    0,
+                    w.0 as i32 + outer.right - outer.left - client.right,
+                    l.0 as i32 + outer.bottom - outer.top - client.bottom,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+                place_panel(hwnd.0 as usize, "clamp");
+            }
+            return LRESULT(0);
         }
         if message == WM_MOUSEACTIVATE
             && GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_NOACTIVATE.0 != 0
@@ -792,7 +851,9 @@ unsafe extern "system" fn quick_panel_proc(
                 Ordering::Acquire,
             );
             let hook = SEARCH_MESSAGE_HOOK.swap(0, Ordering::AcqRel);
-            if hook != 0 { let _ = UnhookWindowsHookEx(HHOOK(hook as *mut _)); }
+            if hook != 0 {
+                let _ = UnhookWindowsHookEx(HHOOK(hook as *mut _));
+            }
             let _ = RemoveWindowSubclass(hwnd, Some(quick_panel_proc), QUICK_SUBCLASS);
         }
         DefSubclassProc(hwnd, message, w, l)
@@ -817,16 +878,26 @@ unsafe extern "system" fn search_message_hook(code: i32, w: WPARAM, l: LPARAM) -
                 state[vk] = (state[vk] & 1) | if up { 0 } else { 0x80 };
                 let _ = SetKeyboardState(&state);
                 let scan = msg.lParam.0;
-                msg.lParam = LPARAM(1 | ((scan & 255) << 16)
-                    | (((packed >> 13) as isize & 1) << 24)
-                    | if up { (1isize << 30) | (1isize << 31) } else { 0 });
+                msg.lParam = LPARAM(
+                    1 | ((scan & 255) << 16)
+                        | (((packed >> 13) as isize & 1) << 24)
+                        | if up {
+                            (1isize << 30) | (1isize << 31)
+                        } else {
+                            0
+                        },
+                );
                 msg.wParam = WPARAM(vk);
                 msg.message = if !quick_panel_keeps_focus(msg.hwnd.0 as usize) {
                     WM_NULL
                 } else if vk == VK_PACKET.0 as usize {
                     msg.wParam = WPARAM(scan as usize);
                     if up { WM_NULL } else { WM_CHAR }
-                } else if up { WM_KEYUP } else { WM_KEYDOWN };
+                } else if up {
+                    WM_KEYUP
+                } else {
+                    WM_KEYDOWN
+                };
             }
         }
         CallNextHookEx(None, code, w, l)
@@ -846,7 +917,12 @@ pub fn prepare_quick_panel(handle: usize, target: usize) -> Result<()> {
     unsafe {
         let hwnd = HWND(handle as *mut _);
         if SEARCH_MESSAGE_HOOK.load(Ordering::Acquire) == 0 {
-            let hook = SetWindowsHookExW(WH_GETMESSAGE, Some(search_message_hook), None, GetCurrentThreadId())?;
+            let hook = SetWindowsHookExW(
+                WH_GETMESSAGE,
+                Some(search_message_hook),
+                None,
+                GetCurrentThreadId(),
+            )?;
             SEARCH_MESSAGE_HOOK.store(hook.0 as usize, Ordering::Release);
         }
         ensure!(
@@ -879,15 +955,32 @@ pub fn show_quick_panel(handle: usize, target: usize) -> Result<()> {
 }
 pub fn set_quick_search_mode(handle: usize, enabled: bool) {
     if QUICK_PANEL.load(Ordering::Acquire) == handle {
-        QUICK_SEARCH.store(enabled, Ordering::Release);
+        if QUICK_SEARCH.swap(enabled, Ordering::AcqRel) == enabled {
+            return;
+        }
         if enabled {
             unsafe {
                 let target = HWND(QUICK_TARGET.load(Ordering::Acquire) as *mut _);
                 let thread = GetWindowThreadProcessId(target, None);
-                let _ = ActivateKeyboardLayout(GetKeyboardLayout(thread), ACTIVATE_KEYBOARD_LAYOUT_FLAGS(0));
+                let _ = ActivateKeyboardLayout(
+                    GetKeyboardLayout(thread),
+                    ACTIVATE_KEYBOARD_LAYOUT_FLAGS(0),
+                );
             }
         }
     }
+}
+pub fn resize_quick_panel(handle: usize, width: f32, height: f32, scale: f32) {
+    // GPUI's normal resize activates a window. Queue an explicit nonactivating
+    // resize so WM_SIZE is delivered outside GPUI's current window borrow.
+    let _ = unsafe {
+        PostMessageW(
+            Some(HWND(handle as *mut _)),
+            QUICK_RESIZE_MESSAGE,
+            WPARAM((width * scale).round() as usize),
+            LPARAM((height * scale).round() as isize),
+        )
+    };
 }
 pub fn place_panel(handle: usize, position: &str) {
     use ::windows::Win32::Graphics::Gdi::*;

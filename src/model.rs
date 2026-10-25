@@ -147,6 +147,7 @@ pub struct Settings {
     pub guide_seen: bool,
     pub respect_sensitive: bool,
     pub recent_symbols: Vec<String>,
+    pub auto_update: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -173,6 +174,7 @@ impl Default for Settings {
             guide_seen: false,
             respect_sensitive: true,
             recent_symbols: vec![],
+            auto_update: cfg!(all(windows, target_arch = "x86_64")),
         }
     }
 }

@@ -16,7 +16,7 @@ impl Desktop {
                 .map(|d| f32::from(d.bounds().size.width))
                 .unwrap_or(0.);
             if available >= QUICK_WIDTH + PREVIEW_WIDTH + 48. {
-                window.resize(size(px(QUICK_WIDTH + PREVIEW_WIDTH), px(QUICK_HEIGHT)));
+                resize_quick_window(window, QUICK_WIDTH + PREVIEW_WIDTH, QUICK_HEIGHT);
                 #[cfg(windows)]
                 platform::place_panel(native(window), "clamp");
             }
@@ -33,7 +33,7 @@ impl Desktop {
         }
         self.editor.update(cx, |e, cx| e.set_value("", window, cx));
         if self.kind == Kind::Quick {
-            window.resize(size(px(QUICK_WIDTH), px(QUICK_HEIGHT)));
+            resize_quick_window(window, QUICK_WIDTH, QUICK_HEIGHT);
         }
         cx.notify();
     }
@@ -256,8 +256,13 @@ impl Desktop {
             ("file", "文件"),
         ]
         .into_iter()
-        .filter(|(filter, _)| if quick { *filter != "rich" } else { !matches!(*filter, "pinned" | "favorites") })
-        {
+        .filter(|(filter, _)| {
+            if quick {
+                *filter != "rich"
+            } else {
+                !matches!(*filter, "pinned" | "favorites")
+            }
+        }) {
             tabs = tabs.child(
                 div()
                     .id(SharedString::from(format!("filter-{filter}")))
@@ -369,7 +374,11 @@ impl Desktop {
                     "试试其他关键词，或清除当前搜索。",
                 )
             } else {
-                match self.route {
+                match if self.kind == Kind::Quick {
+                    self.filter
+                } else {
+                    self.route
+                } {
                     "pinned" => (
                         IconName::Pin,
                         "还没有置顶内容",
@@ -551,7 +560,11 @@ impl Desktop {
             } else if entry.kind == "image" {
                 message("图片 · {}", &[("", bytes_label(entry.bytes))])
             } else {
-                format!("{} · {}", tr(kind_label(&entry.kind)), bytes_label(entry.bytes))
+                format!(
+                    "{} · {}",
+                    tr(kind_label(&entry.kind)),
+                    bytes_label(entry.bytes)
+                )
             };
         }
         let menu = self.row_menu(&entry, cx);
@@ -672,7 +685,11 @@ impl Desktop {
                             .truncate()
                             .text_size(px(10.))
                             .text_color(cx.theme().muted_foreground)
-                            .child(format!("{} · {}", entry.source, tr(kind_label(&entry.kind)))),
+                            .child(format!(
+                                "{} · {}",
+                                entry.source,
+                                tr(kind_label(&entry.kind))
+                            )),
                     )
                     .child(
                         icon_button(

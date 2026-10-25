@@ -342,14 +342,14 @@
   ],
   "一个快捷键，\n找回刚才的内容。": [
     "一个快捷键，\n找回刚才的内容。",
-    "一個快速鍵，\n找回剛才的內容。",
+    "一個快捷鍵，\n找回剛才的內容。",
     "One shortcut.\nEverything you just copied.",
-    "ショートカットキー、\n前のコンテンツを取得します。",
-    "단축키,\n이전 콘텐츠를 검색합니다.",
-    "una tecla de acceso directo,\nRecupera el contenido anterior.",
-    "une touche de raccourci,\nRécupérez le contenu précédent.",
-    "eine Tastenkombination,\nRufen Sie den vorherigen Inhalt ab.",
-    "uma tecla de atalho,\nRecuperar o conteúdo anterior."
+    "ひとつのキーで、\nコピー履歴を呼び出す。",
+    "단축키 하나로,\n방금 복사한 내용을.",
+    "Un atajo.\nTodo lo que acabas de copiar.",
+    "Un raccourci.\nTout ce que vous avez copié.",
+    "Ein Tastenkürzel.\nAlles zuletzt Kopierte.",
+    "Um atalho.\nTudo o que você copiou."
   ],
   "上一步": [
     "上一步",
@@ -410,12 +410,12 @@
     "从第一条记录开始，\n就受到保护。",
     "從第一筆記錄開始，\n就受到保護。",
     "Protected\nfrom your very first copy.",
-    "最初のレコードから始めて、\nただ守られてください。",
-    "첫 번째 기록부터,\n그냥 보호 받으세요.",
-    "A partir del primer registro,\nSimplemente esté protegido.",
-    "À partir du premier enregistrement,\nSoyez simplement protégé.",
-    "Beginnend mit der ersten Aufzeichnung,\nSeien Sie einfach beschützt.",
-    "A partir do primeiro disco,\nBasta estar protegido."
+    "最初のコピーから、\nしっかり保護。",
+    "첫 번째 기록부터,\n안전하게 보호됩니다.",
+    "Protegido desde\nla primera copia.",
+    "Protégé dès\nla première copie.",
+    "Geschützt ab\nder ersten Kopie.",
+    "Protegido desde\na primeira cópia."
   ],
   "代码": [
     "代码",
@@ -872,12 +872,12 @@
     "准备好，\n融入你的工作流。",
     "準備好，\n融入你的工作流程。",
     "Ready to fit\ninto your workflow.",
-    "準備をする\nそれをワークフローに統合します。",
-    "준비하다\n이를 귀하의 워크플로에 통합하세요.",
-    "prepárate\nIntégrelo en su flujo de trabajo.",
-    "préparez-vous\nIntégrez-le à votre flux de travail.",
-    "mach dich bereit\nIntegrieren Sie es in Ihren Workflow.",
-    "prepare-se\nIntegre-o ao seu fluxo de trabalho."
+    "いつもの作業に、\nすぐなじむ。",
+    "작업 흐름에,\n자연스럽게.",
+    "Listo para\ntu forma de trabajar.",
+    "Prêt à suivre\nvotre rythme.",
+    "Bereit für\nIhren Arbeitsalltag.",
+    "Pronto para\no seu dia a dia."
   ],
   "几何": [
     "几何",
@@ -1433,12 +1433,12 @@
     "复制之后，\n不必再担心找不到。",
     "複製之後，\n不必再擔心找不到。",
     "Copy once.\nFind it whenever you need it.",
-    "コピーした後、\n見つからないという心配はもうありません。",
-    "복사한 후,\n더 이상 찾을 수 없다고 걱정하지 마세요.",
-    "Después de copiar,\nYa no tendrás que preocuparte por no poder encontrarlo.",
-    "Après copie,\nNe vous inquiétez plus de ne pas pouvoir le trouver.",
-    "Nach dem Kopieren\nMachen Sie sich keine Sorgen mehr darüber, dass Sie es nicht finden können.",
-    "Depois de copiar,\nNão se preocupe mais em não conseguir encontrá-lo."
+    "コピーしたものを、\nいつでも手元に。",
+    "복사한 내용을,\n언제든 다시 찾으세요.",
+    "Copia una vez.\nEncuéntralo cuando lo necesites.",
+    "Copiez maintenant.\nRetrouvez tout facilement.",
+    "Nach dem Kopieren,\nimmer griffbereit.",
+    "Copiou?\nEncontre quando precisar."
   ],
   "复制内容": [
     "复制内容",
@@ -2971,14 +2971,14 @@
   ],
   "本地保护": [
     "本地保护",
-    "本地保護",
+    "本機保護",
     "Local protection",
-    "ローカルプロテクション",
-    "지역 보호",
-    "protección local",
-    "protection locale",
-    "lokaler Schutz",
-    "proteção local"
+    "ローカル保護",
+    "로컬 보호",
+    "Protección local",
+    "Protection locale",
+    "Lokaler Schutz",
+    "Proteção local"
   ],
   "本地内容": [
     "本地内容",
@@ -4148,14 +4148,14 @@
   ],
   "设置快捷键": [
     "设置快捷键",
-    "設定快速鍵",
+    "設定快捷鍵",
     "Set shortcut",
-    "ショートカットキーを設定する",
+    "ショートカット",
     "단축키 설정",
-    "Establecer teclas de acceso directo",
-    "Définir les touches de raccourci",
-    "Legen Sie Tastenkombinationen fest",
-    "Definir teclas de atalho"
+    "Configurar atajo",
+    "Définir le raccourci",
+    "Tastenkürzel",
+    "Definir atalho"
   ],
   "设置未保存：{e}": [
     "设置未保存：{e}",
@@ -4550,7 +4550,7 @@
     "일반 설정",
     "Ajustes generales",
     "Paramètres généraux",
-    "Allgemeine Einstellungen",
+    "Allgemein",
     "Configurações gerais"
   ],
   "配置全局唤起快捷键，查看面板内操作。": [
