@@ -1,0 +1,49 @@
+name: Bug report / 问题报告
+description: Report a reproducible issue without sharing clipboard contents / 报告可复现问题，请勿分享剪贴板内容
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach clipboard databases, key files, passwords, tokens, or private clipboard contents. Use synthetic examples.
+        请勿附上剪贴板数据库、密钥文件、密码、令牌或私人剪贴板内容。请使用合成示例。
+  - type: input
+    id: os
+    attributes:
+      label: OS and version / 操作系统与版本
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: App version or commit / 应用版本或提交
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      description: Use synthetic clipboard data only. / 仅使用合成剪贴板数据。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (redacted) / 相关日志（已脱敏）
+      description: Remove personal paths, clipboard text, secrets, and identifiers. / 删除个人路径、剪贴板文本、密钥和身份标识。
+    validations:
+      required: false
