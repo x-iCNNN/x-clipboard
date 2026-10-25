@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/x-iCNNN/x-clipboard/actions/workflows/native.yml"><img src="https://github.com/x-iCNNN/x-clipboard/actions/workflows/native.yml/badge.svg?branch=main" alt="Native validation workflow"></a>
-  <a href="https://github.com/x-iCNNN/x-clipboard/releases"><img src="https://img.shields.io/github/v/release/x-iCNNN/x-clipboard?include_prereleases&label=preview%20release" alt="Latest preview release"></a>
+  <a href="https://github.com/x-iCNNN/x-clipboard/releases"><img src="https://img.shields.io/github/v/release/x-iCNNN/x-clipboard?include_prereleases&label=latest%20release" alt="Latest release"></a>
 </p>
 
 <p align="center"><strong>本机优先的加密剪贴板管理器 · Encrypted clipboard history for Windows</strong></p>
@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <strong>Windows preview available · Windows 预览版可用</strong><br>
+  <strong>Windows x64 release available · Windows x64 正式版已发布</strong><br>
   macOS and Linux builds are in progress and have not completed native release validation.<br>
   macOS 与 Linux 构建仍在进行，尚未完成原生发布验收。
 </p>
