@@ -1,0 +1,296 @@
+{
+  "memory-debug-before": {
+    "label": "debug-before",
+    "sha256": "8e23a41198598c20028af1798595ef4750e74b1edbb0b266d13fc50419c35898",
+    "scenario": "isolated encrypted database (empty for welcome, synthetic fixture for background); welcome_window=False; 5s warmup, 10 samples at 500ms",
+    "working_set_median_bytes": 71802880,
+    "private_median_bytes": 55275520,
+    "samples": [
+      {
+        "working_set_bytes": 71802880,
+        "private_bytes": 55275520
+      },
+      {
+        "working_set_bytes": 71798784,
+        "private_bytes": 55271424
+      },
+      {
+        "working_set_bytes": 71798784,
+        "private_bytes": 55271424
+      },
+      {
+        "working_set_bytes": 71802880,
+        "private_bytes": 55275520
+      },
+      {
+        "working_set_bytes": 71802880,
+        "private_bytes": 55275520
+      },
+      {
+        "working_set_bytes": 71802880,
+        "private_bytes": 55275520
+      },
+      {
+        "working_set_bytes": 71802880,
+        "private_bytes": 55275520
+      },
+      {
+        "working_set_bytes": 71811072,
+        "private_bytes": 55283712
+      },
+      {
+        "working_set_bytes": 71811072,
+        "private_bytes": 55283712
+      },
+      {
+        "working_set_bytes": 71835648,
+        "private_bytes": 55283712
+      }
+    ]
+  },
+  "memory-debug-before-window": {
+    "label": "debug-before-window",
+    "sha256": "8e23a41198598c20028af1798595ef4750e74b1edbb0b266d13fc50419c35898",
+    "scenario": "isolated encrypted database; capture paused; empty welcome or synthetic background fixture; welcome_window=True; 5s warmup, 10 samples at 500ms",
+    "working_set_median_bytes": 110481408,
+    "private_median_bytes": 88543232,
+    "samples": [
+      {
+        "working_set_bytes": 110538752,
+        "private_bytes": 88600576
+      },
+      {
+        "working_set_bytes": 110514176,
+        "private_bytes": 88576000
+      },
+      {
+        "working_set_bytes": 110514176,
+        "private_bytes": 88576000
+      },
+      {
+        "working_set_bytes": 110481408,
+        "private_bytes": 88543232
+      },
+      {
+        "working_set_bytes": 110481408,
+        "private_bytes": 88543232
+      },
+      {
+        "working_set_bytes": 110481408,
+        "private_bytes": 88543232
+      },
+      {
+        "working_set_bytes": 110481408,
+        "private_bytes": 88543232
+      },
+      {
+        "working_set_bytes": 110481408,
+        "private_bytes": 88543232
+      },
+      {
+        "working_set_bytes": 110481408,
+        "private_bytes": 88543232
+      },
+      {
+        "working_set_bytes": 110481408,
+        "private_bytes": 88543232
+      }
+    ]
+  },
+  "memory-release": {
+    "label": "release-final",
+    "sha256": "a2edefacf9f35b42a2e2e42c11045561a1fe4c2fc3b801b43238f32476e96ee6",
+    "scenario": "isolated encrypted database (empty for welcome, synthetic fixture for background); welcome_window=False; 5s warmup, 10 samples at 500ms",
+    "working_set_median_bytes": 54206464,
+    "private_median_bytes": 53932032,
+    "samples": [
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53936128
+      },
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53932032
+      },
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53932032
+      },
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53932032
+      },
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53932032
+      },
+      {
+        "working_set_bytes": 54210560,
+        "private_bytes": 53936128
+      },
+      {
+        "working_set_bytes": 54210560,
+        "private_bytes": 53936128
+      },
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53932032
+      },
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53932032
+      },
+      {
+        "working_set_bytes": 54206464,
+        "private_bytes": 53932032
+      }
+    ]
+  },
+  "memory-release-window": {
+    "label": "release-final-window",
+    "sha256": "a2edefacf9f35b42a2e2e42c11045561a1fe4c2fc3b801b43238f32476e96ee6",
+    "scenario": "isolated encrypted database; capture paused; empty welcome or synthetic background fixture; welcome_window=True; 5s warmup, 10 samples at 500ms",
+    "working_set_median_bytes": 88068096,
+    "private_median_bytes": 86380544,
+    "samples": [
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      },
+      {
+        "working_set_bytes": 88068096,
+        "private_bytes": 86380544
+      }
+    ]
+  },
+  "memory-upx": {
+    "label": "release-upx-final",
+    "sha256": "e255c6d32a942a1602c5b829f66a16b636317dbf85c66b7f4412a7779f2cc222",
+    "scenario": "isolated encrypted database (empty for welcome, synthetic fixture for background); welcome_window=False; 5s warmup, 10 samples at 500ms",
+    "working_set_median_bytes": 79773696,
+    "private_median_bytes": 87150592,
+    "samples": [
+      {
+        "working_set_bytes": 79769600,
+        "private_bytes": 87146496
+      },
+      {
+        "working_set_bytes": 79773696,
+        "private_bytes": 87150592
+      },
+      {
+        "working_set_bytes": 79773696,
+        "private_bytes": 87150592
+      },
+      {
+        "working_set_bytes": 79773696,
+        "private_bytes": 87150592
+      },
+      {
+        "working_set_bytes": 79773696,
+        "private_bytes": 87150592
+      },
+      {
+        "working_set_bytes": 79773696,
+        "private_bytes": 87150592
+      },
+      {
+        "working_set_bytes": 79773696,
+        "private_bytes": 87150592
+      },
+      {
+        "working_set_bytes": 79769600,
+        "private_bytes": 87146496
+      },
+      {
+        "working_set_bytes": 79769600,
+        "private_bytes": 87146496
+      },
+      {
+        "working_set_bytes": 79769600,
+        "private_bytes": 87146496
+      }
+    ]
+  },
+  "memory-upx-window": {
+    "label": "release-upx-final-window",
+    "sha256": "e255c6d32a942a1602c5b829f66a16b636317dbf85c66b7f4412a7779f2cc222",
+    "scenario": "isolated encrypted database; capture paused; empty welcome or synthetic background fixture; welcome_window=True; 5s warmup, 10 samples at 500ms",
+    "working_set_median_bytes": 109928448,
+    "private_median_bytes": 119586816,
+    "samples": [
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      },
+      {
+        "working_set_bytes": 109928448,
+        "private_bytes": 119586816
+      }
+    ]
+  }
+}

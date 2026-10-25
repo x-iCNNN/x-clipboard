@@ -1,0 +1,81 @@
+[package]
+name = "x-clipboard"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+publish = false
+
+[features]
+default = ["native"]
+native = ["dep:gpui-kit", "dep:tray-icon", "dep:global-hotkey", "dep:raw-window-handle"]
+ui-capture = ["native", "dep:gpui-capture"]
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+postcard = { version = "1", features = ["use-std"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.10"
+directories = "6"
+getrandom = "0.4"
+zeroize = "1"
+pollster = "0.4"
+turso = { version = "=0.8.3", default-features = false, features = ["pure-rust-crypto"] }
+crossbeam-channel = "0.5"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp", "tiff"] }
+pdfium-render = "=0.9.4"
+pulldown-cmark = "0.13"
+ammonia = "4"
+open = "5"
+url = "2"
+fs2 = "0.4"
+gpui-kit = { version = "=0.8.0", optional = true }
+tray-icon = { version = "0.21", optional = true }
+global-hotkey = { version = "0.7", optional = true }
+raw-window-handle = { version = "0.6", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory", "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_System_ProcessStatus", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_Graphics_Gdi"] }
+gpui-capture = { package = "gpui-pre-windows", version = "=0.3.9", features = ["test-support"], optional = true }
+
+[target.'cfg(not(windows))'.dependencies]
+clipboard-rs = { version = "=0.3.5", features = ["wayland"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6", features = ["apple-native"] }
+objc2-app-kit = { version = "0.3", features = ["NSPasteboard", "NSRunningApplication", "NSWorkspace"] }
+objc2-foundation = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6", features = ["sync-secret-service", "crypto-rust"] }
+x11rb = { version = "0.13", features = ["xtest"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.dev]
+debug = 0
+
+[profile.dev.package.gpui-pre]
+opt-level = 2
+
+[profile.dev.package.gpui-component]
+opt-level = 2
+
+[profile.dev.package.taffy]
+opt-level = 2
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+strip = true
+codegen-units = 1
+
+[[bin]]
+name = "x-clipboard"
+path = "src/main.rs"
+required-features = ["native"]
+
+[build-dependencies]
+winresource = "0.1"

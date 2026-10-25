@@ -1,0 +1,105 @@
+{
+  "generated": "2026-10-24",
+  "stage": "design-review",
+  "count": 12,
+  "entries": [
+    {
+      "id": "welcome",
+      "label": "首次使用 · 欢迎",
+      "theme": "light",
+      "platform": "windows",
+      "file": "renders/windows-light/01-welcome.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=welcome&theme=light&platform=windows"
+    },
+    {
+      "id": "quick",
+      "label": "快捷面板",
+      "theme": "light",
+      "platform": "windows",
+      "file": "renders/windows-light/05-quick.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=quick&theme=light&platform=windows"
+    },
+    {
+      "id": "preview-image",
+      "label": "预览 · 图片",
+      "theme": "light",
+      "platform": "windows",
+      "file": "renders/windows-light/08-preview-image.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=preview-image&theme=light&platform=windows"
+    },
+    {
+      "id": "manager",
+      "label": "全部历史",
+      "theme": "light",
+      "platform": "windows",
+      "file": "renders/windows-light/14-manager.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=manager&theme=light&platform=windows"
+    },
+    {
+      "id": "shortcuts",
+      "label": "设置 · 快捷键",
+      "theme": "light",
+      "platform": "windows",
+      "file": "renders/windows-light/23-shortcuts.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=shortcuts&theme=light&platform=windows"
+    },
+    {
+      "id": "storage",
+      "label": "设置 · 存储",
+      "theme": "light",
+      "platform": "windows",
+      "file": "renders/windows-light/24-storage.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=storage&theme=light&platform=windows"
+    },
+    {
+      "id": "welcome",
+      "label": "首次使用 · 欢迎",
+      "theme": "dark",
+      "platform": "windows",
+      "file": "renders/windows-dark/01-welcome.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=welcome&theme=dark&platform=windows"
+    },
+    {
+      "id": "quick",
+      "label": "快捷面板",
+      "theme": "dark",
+      "platform": "windows",
+      "file": "renders/windows-dark/05-quick.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=quick&theme=dark&platform=windows"
+    },
+    {
+      "id": "preview-image",
+      "label": "预览 · 图片",
+      "theme": "dark",
+      "platform": "windows",
+      "file": "renders/windows-dark/08-preview-image.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=preview-image&theme=dark&platform=windows"
+    },
+    {
+      "id": "manager",
+      "label": "全部历史",
+      "theme": "dark",
+      "platform": "windows",
+      "file": "renders/windows-dark/14-manager.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=manager&theme=dark&platform=windows"
+    },
+    {
+      "id": "shortcuts",
+      "label": "设置 · 快捷键",
+      "theme": "dark",
+      "platform": "windows",
+      "file": "renders/windows-dark/23-shortcuts.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=shortcuts&theme=dark&platform=windows"
+    },
+    {
+      "id": "storage",
+      "label": "设置 · 存储",
+      "theme": "dark",
+      "platform": "windows",
+      "file": "renders/windows-dark/24-storage.png",
+      "prototype": "../.planning/sketches/001-x-clipboard/index.html?screen=storage&theme=dark&platform=windows"
+    }
+  ],
+  "errors": [],
+  "layoutIssues": []
+}

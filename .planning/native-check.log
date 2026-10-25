@@ -1,0 +1,12 @@
+    Checking x-clipboard v0.1.0 (D:\code\iCNNN\x-clipboard)
+warning: unused variable: `this`
+    --> src\ui.rs:1810:30
+     |
+1810 |             view.update(cx, |this, cx| {
+     |                              ^^^^ help: if this is intentional, prefix it with an underscore: `_this`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `x-clipboard` (bin "x-clipboard" test) generated 1 warning (run `cargo fix --bin "x-clipboard" -p x-clipboard --tests` to apply 1 suggestion)
+warning: `x-clipboard` (bin "x-clipboard") generated 1 warning (1 duplicate)
+    Finished `dev` profile [unoptimized] target(s) in 3.82s

@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-24",
+  "scope": "HTML design prototype only; no native OS integration tested",
+  "passed": 30,
+  "total": 30,
+  "results": [
+    {
+      "name": "所有页面均可渲染且无脚本异常",
+      "pass": true
+    },
+    {
+      "name": "搜索按内容过滤，清除后恢复",
+      "pass": true
+    },
+    {
+      "name": "搜索框中的 Enter 不触发粘贴",
+      "pass": true
+    },
+    {
+      "name": "点击预览在旁边展开且不会粘贴",
+      "pass": true
+    },
+    {
+      "name": "收藏不改变排序，置顶进入置顶区",
+      "pass": true
+    },
+    {
+      "name": "模拟再次复制不增条数且移到本分区第一位",
+      "pass": true
+    },
+    {
+      "name": "清空默认保留置顶和收藏",
+      "pass": true
+    },
+    {
+      "name": "明确选择后可清空受保护记录",
+      "pass": true
+    },
+    {
+      "name": "批量删除仅删除选中的记录",
+      "pass": true
+    },
+    {
+      "name": "快捷键录制检测编辑键冲突",
+      "pass": true
+    },
+    {
+      "name": "快捷键可录制、保存并恢复默认",
+      "pass": true
+    },
+    {
+      "name": "macOS 快捷键保存独立生效",
+      "pass": true
+    },
+    {
+      "name": "Esc 先关闭预览再收起快捷面板",
+      "pass": true
+    },
+    {
+      "name": "键盘选中与纯文本回贴反馈",
+      "pass": true
+    },
+    {
+      "name": "PDF 翻页与缩放",
+      "pass": true
+    },
+    {
+      "name": "图片按实际比例缩放与适应窗口",
+      "pass": true
+    },
+    {
+      "name": "首用引导可走完四步",
+      "pass": true
+    },
+    {
+      "name": "主题切换与动效设置",
+      "pass": true
+    },
+    {
+      "name": "存储上限拒绝无效值",
+      "pass": true
+    },
+    {
+      "name": "排除应用添加与移除",
+      "pass": true
+    },
+    {
+      "name": "表情分类、搜索、插入反馈",
+      "pass": true
+    },
+    {
+      "name": "暂停状态可恢复",
+      "pass": true
+    },
+    {
+      "name": "三平台窗口控制布局",
+      "pass": true
+    },
+    {
+      "name": "窄屏预览改为单面板并可返回",
+      "pass": true
+    },
+    {
+      "name": "375 / 768 / 1280 宽度无页面横向溢出",
+      "pass": true
+    },
+    {
+      "name": "宽导航与 BLS 标题栏布局约定",
+      "pass": true
+    },
+    {
+      "name": "titlebar 主题按钮和窗口菜单可操作",
+      "pass": true
+    },
+    {
+      "name": "窗口菜单三平台对齐按钮且没有退出项",
+      "pass": true
+    },
+    {
+      "name": "弹窗获取焦点并在关闭后返回触发按钮",
+      "pass": true
+    },
+    {
+      "name": "渲染图库筛选与大图键盘导航",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "renderer": "GPUI native render_to_image",
+  "fixture": "synthetic encrypted database",
+  "visual_acceptance": "NOT_PROVEN_BY_CAPTURE_EXISTENCE",
+  "count": 2,
+  "captures": [
+    {
+      "name": "file-type-marks",
+      "theme": "light",
+      "file": "file-type-marks-light.png",
+      "expected_width": 1120.0,
+      "expected_height": 760.0,
+      "logical_width": 1120.0,
+      "logical_height": 760.0,
+      "pixel_width": 1120,
+      "pixel_height": 760,
+      "scale_factor": 1.0,
+      "preview_error": null,
+      "expected_preview_error": false,
+      "visual_review": "pending-human-or-agent-image-inspection"
+    },
+    {
+      "name": "file-type-marks",
+      "theme": "dark",
+      "file": "file-type-marks-dark.png",
+      "expected_width": 1120.0,
+      "expected_height": 760.0,
+      "logical_width": 1120.0,
+      "logical_height": 760.0,
+      "pixel_width": 1120,
+      "pixel_height": 760,
+      "scale_factor": 1.0,
+      "preview_error": null,
+      "expected_preview_error": false,
+      "visual_review": "pending-human-or-agent-image-inspection"
+    }
+  ]
+}

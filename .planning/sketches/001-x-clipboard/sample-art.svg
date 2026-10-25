@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
+  <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#e6e6d7"/><stop offset="1" stop-color="#c3d7c6"/></linearGradient><linearGradient id="hill" x2="0" y2="1"><stop stop-color="#486f60"/><stop offset="1" stop-color="#244c41"/></linearGradient></defs>
+  <path fill="url(#sky)" d="M0 0h960v640H0z"/>
+  <circle cx="705" cy="193" r="66" fill="#da8259"/>
+  <path d="M0 362Q175 192 371 349T960 291v349H0Z" fill="#8fa895"/>
+  <path d="M0 449Q183 338 409 442T960 370v270H0Z" fill="#638571"/>
+  <path d="M0 564Q262 394 484 508T960 462v178H0Z" fill="url(#hill)"/>
+  <path d="M598 640Q461 564 562 502Q661 442 616 388" fill="none" stroke="#d7d8ba" stroke-width="12" opacity=".7"/>
+  <text x="64" y="92" fill="#36594b" font-family="Georgia,serif" font-size="19" letter-spacing="5">STILL / STUDIO</text>
+  <text x="63" y="175" fill="#244c41" font-family="Georgia,serif" font-size="58">A little room</text>
+  <text x="63" y="239" fill="#244c41" font-family="Georgia,serif" font-size="58">to breathe.</text>
+  <text x="64" y="598" fill="#e9ede2" font-family="Arial,sans-serif" font-size="14" letter-spacing="3">SLOW DAYS. CLEAR IDEAS.</text>
+</svg>

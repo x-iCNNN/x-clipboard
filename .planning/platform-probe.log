@@ -1,0 +1,12 @@
+   Compiling x-clipboard v0.1.0 (D:\code\iCNNN\x-clipboard)
+    Finished `dev` profile [unoptimized] target(s) in 3.17s
+     Running `target\debug\examples\windows_probe.exe`
+stage: original clipboard
+stage: text captured
+stage: multi format captured
+stage: rich write complete
+stage: plain write complete
+stage: PNG preview complete
+stage: file copy effect verified
+stage: missing-file verified
+PASS: text capture, duplicate ordering, format-sensitive identity, HTML+RTF preservation, self-write suppression, plain-text write, PNG preview, file copy semantics, missing-file preview, 20 paced copies, protected clear, graceful checkpoint
