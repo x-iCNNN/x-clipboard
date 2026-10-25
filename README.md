@@ -1,4 +1,11 @@
-# X Clipboard
+# X Clipboard — Local-First Clipboard Manager
+
+<p align="center">
+  <a href="https://github.com/x-iCNNN/x-clipboard/actions/workflows/native.yml"><img src="https://github.com/x-iCNNN/x-clipboard/actions/workflows/native.yml/badge.svg?branch=main" alt="Native validation workflow"></a>
+  <a href="https://github.com/x-iCNNN/x-clipboard/releases"><img src="https://img.shields.io/github/v/release/x-iCNNN/x-clipboard?include_prereleases&label=preview%20release" alt="Latest preview release"></a>
+</p>
+
+<p align="center"><strong>本机优先的加密剪贴板管理器 · Encrypted clipboard history for Windows</strong></p>
 
 > **Clipboard history that stays on your device.** Capture, search, preview, and paste again with a native desktop app built in Rust.
 >
