@@ -4,9 +4,10 @@
 
 ## 已完成
 
-- `cargo test --locked --no-default-features --lib`：35 项通过，2 项显式忽略（性能探针、发布后 GitHub 包下载探针）。
+- `cargo test --locked --no-default-features --lib`：36 项通过，2 项显式忽略（性能探针、发布后 GitHub 包下载探针）。
 - `cargo clippy --locked --all-targets --features ui-capture -- -D warnings`、格式检查与 Release 构建通过。
 - 协议故障注入：并发首写、ETag 竞争重试、错误密码/账号、损坏密文、上传失败、删除后离线重连、独立标记合并、重复制、容量清理与加密配置重开通过。
+- 首次上传并发回归：上传第一个内容块期间，主动删除或容量清理移除第二条记录；修复前复现远端缺失内容块 404，修复后只发布可读取的内容引用，两种情况均通过。
 - 数据库并发回归：先持有后台同步事务，再提交剪贴板捕获；修复前复现 `database is locked`，共享写入串行化后捕获正常等待并保存。
 - HTTP 测试夹具：Windows 接收套接字继承监听器的非阻塞模式，最初误把 WouldBlock 当成 EOF，造成 10053 断连。显式设置接收套接字阻塞后，原完整同步测试和重复目录请求稳定通过。
 - 独立 WsgiDAV 探针：真实 Basic 认证、文本/HTML 多格式、PNG、文件路径引用、启动后台同步、20 次并发重复采集、真实 60 秒周期、关闭自动同步后手动推送通过。
@@ -19,7 +20,7 @@
 
 | 文件 | SHA-256 |
 | --- | --- |
-| `x-clipboard-v0.3.0-windows-x64.zip` | `ca4cd4f7239d83c49d64201f8690b664f799d56f479a5d9410151d0d9803de10` |
-| `x-clipboard-v0.3.0-windows-x64-setup.exe` | `27d32f074a134e3dec8197f72ed285114b70cd63594bf8e812ec1aa95e461d01` |
+| `x-clipboard-v0.3.0-windows-x64.zip` | `c3868257839ffe9551553d884a616e173ff0554029221c5e6869d3ec4fd6df78` |
+| `x-clipboard-v0.3.0-windows-x64-setup.exe` | `8bbf5f8829cd6f47c913584bd28fea285b4d96d10d5f31a2805fcf778c17cb09` |
 
 协议范围、端到端加密、容量清理、逻辑删除、远端密文保留和大小限制见 [WEBDAV.md](WEBDAV.md)。未声称所有商用 WebDAV、真实用户账号或 macOS/Linux 原生运行均已验收。发布后仍需核对公开 Release 资产和在线更新接口。

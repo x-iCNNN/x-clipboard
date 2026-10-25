@@ -16,6 +16,7 @@ struct ServerState {
     conflicts: usize,
     fail_blob: bool,
     corrupt_blob: bool,
+    pause_blob_head: Option<(std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>)>,
 }
 struct Server {
     address: String,
@@ -97,6 +98,13 @@ fn serve(mut stream: TcpStream, state: &Mutex<ServerState>) {
     assert!(length < 200 * 1024 * 1024);
     let mut body = vec![0; length];
     stream.read_exact(&mut body).unwrap();
+    if method == "HEAD" && path.contains("/blobs/") {
+        let pause = state.lock().unwrap().pause_blob_head.take();
+        if let Some((entered, resume)) = pause {
+            entered.send(()).unwrap();
+            resume.recv_timeout(Duration::from_secs(10)).unwrap();
+        }
+    }
     let mut state = state.lock().unwrap();
     let mut code = 200;
     let mut response = Vec::new();
@@ -382,4 +390,52 @@ fn clipboard_capture_waits_for_a_background_sync_transaction() {
         "background sync caused capture failure: {}",
         result.err().unwrap()
     );
+}
+
+#[test]
+fn deletion_and_eviction_during_first_upload_never_publish_missing_blob_references() {
+    for explicit in [true, false] {
+        let server = Server::new();
+        let (_root, a) = device();
+        let (_peer, b) = device();
+        let mut entries = [
+            capture(&a, "upload race one"),
+            capture(&a, "upload race two"),
+        ];
+        entries.sort_by(|a, b| a.fingerprint.cmp(&b.fingerprint));
+        // Keep the first upload newer so retention removes the second, not the paused payload.
+        a.capture(&a.content(&entries[0].id).unwrap(), &Settings::default())
+            .unwrap();
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+        server.state.lock().unwrap().pause_blob_head = Some((entered_tx, resume_rx));
+        let background = a.fork().unwrap();
+        let config = server.config();
+        let worker = std::thread::spawn(move || synchronize(&background, &config));
+        entered_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        if explicit {
+            a.delete(&[entries[1].id.clone()]).unwrap();
+        } else {
+            assert_eq!(
+                a.prune(&Settings {
+                    max_entries: 1,
+                    ..Settings::default()
+                })
+                .unwrap(),
+                1
+            );
+        }
+        resume_tx.send(()).unwrap();
+        worker.join().unwrap().unwrap();
+        let result = synchronize(&b, &server.config());
+        assert!(
+            result.is_ok(),
+            "published an unavailable payload: {}",
+            result.err().unwrap()
+        );
+        assert_eq!(b.list().unwrap().len(), 1);
+        sync(&a, &server);
+        sync(&b, &server);
+        assert_eq!(b.list().unwrap().len(), 1);
+    }
 }

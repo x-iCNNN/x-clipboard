@@ -421,10 +421,9 @@ pub fn synchronize(store: &HistoryStore, config: &Config) -> Result<()> {
                 .max()
                 .unwrap_or(0),
         )?;
-        let local = store.sync_export()?;
+        let mut local = store.sync_export()?;
         let original = serde_json::to_vec(&remote)?;
-        remote.merge(&local);
-        remote.validate()?;
+        let mut unavailable = Vec::new();
         // Upload immutable blobs before publishing their references. Failed uploads never expose an incomplete index.
         for (hash, record) in &local.records {
             if record.deleted.value || known_blobs.contains(hash) {
@@ -448,8 +447,17 @@ pub fn synchronize(store: &HistoryStore, config: &Config) -> Result<()> {
                         response.status().as_u16()
                     );
                 }
+            } else {
+                // A user deletion or local retention may have removed this payload since export.
+                // Do not publish a new reference unless its immutable blob was actually available.
+                unavailable.push(hash.clone());
             }
         }
+        for hash in unavailable {
+            local.records.remove(&hash);
+        }
+        remote.merge(&local);
+        remote.validate()?;
         // Download to memory one record at a time and import transactionally. No plaintext staging files.
         for (hash, record) in &remote.records {
             if !record.deleted.value && store.sync_needs_content(hash, record)? {
