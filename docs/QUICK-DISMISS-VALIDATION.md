@@ -44,3 +44,11 @@ Release notes contain only user-facing changes, in Chinese and English. Bugs use
 - The final native dismissal test includes explicit activation followed by return to the original target: 	est-data/dismiss-active-confirmed/dismiss-result.json passed all six checks.
 - ZIP SHA-256: `e8df4d2ebad9278ae0efdbded0e9eb27cbccd0aa6a3c6dddfaf016d8a708a5e4`.
 - Setup SHA-256: `d55e4543ec1b48dfa74da4d317c54391eb170cb63173bdf8b941b8eaa4817e72`.
+
+## Public release / 公开发布
+
+- Published https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.4 with exactly the change-only bilingual 🕷️ Bug Fix entry from RELEASE-v0.3.4.md.
+- Latest release returned v0.3.4 and draft=false, with four assets. All four remote SHA-256 digests and sizes matched the final local packages. Remote tag points to `f57b0de2fdcb4662181b15ce4f41d702dee51d4e`.
+- Final `updater::tests::github_live_check` passed against the public release: anonymous API lookup, actual ZIP download, GitHub SHA-256 verification, extraction, and same-version no-update check.
+- Initial CLI attachment upload timed out (HTTP 408). Final assets were uploaded sequentially with the authenticated Python standard-library uploader; a transient checksum upload was retried. The release stayed draft until all final attachments matched.
+- v0.3.3 release notes were also edited to remove feedback, validation, and download boilerplate and use ✨ Feature / 🕷️ Bug Fix / 🔧 Fix entries.
