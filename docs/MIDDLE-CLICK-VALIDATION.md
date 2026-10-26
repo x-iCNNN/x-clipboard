@@ -29,3 +29,10 @@ Windows-only, opt-in `middle_click_activation` setting, default false for new an
 - Application SHA-256: `92f8a3a77e038ad249c503365e9e8ce39ff226959b7d920833c703746b780dbf`.
 - ZIP SHA-256: `ce11a54c08ce80d7775a22f3beb03ee75bb7fbd28b55b209101ff2a912ccff9a`.
 - Setup SHA-256: `ea3bc952566c5fc8ff7911de7a73e47d30cc0c9141f80ec93355de5b6aa8272a`.
+
+## Public release / 公开发布
+
+- Published https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.2 on 2026-10-26 (Asia/Shanghai), with bilingual release notes and four assets.
+- GitHub `/releases/latest` returned `v0.3.2`, `draft=false`; all four remote asset sizes and SHA-256 digests matched local files.
+- Remote tag: `854358f0c8a693343e0721f40e28cee96ff145ef`. Tracked build inputs matched the packaged workspace after line-ending normalization.
+- Explicit public `updater::tests::github_live_check` passed: actual latest portable download, GitHub SHA-256 verification, ZIP extraction, and same-version no-update behavior.
