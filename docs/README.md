@@ -16,6 +16,8 @@ This page is the map for project documentation. Product decisions and validation
 
 - [Encrypted WebDAV sync / WebDAV 加密同步](WEBDAV.md)
 - [Installation and updates / 安装与更新](UPDATES.md)
+- [v0.3.6 release notes / v0.3.6 版本说明](RELEASE-v0.3.6.md)
+- [Version corner and README gallery / 版本角标与 README 展示图](VERSION-CORNER-VALIDATION.md)
 - [v0.3.5 release notes / v0.3.5 版本说明](RELEASE-v0.3.5.md)
 - [Update acceleration and header validation / 更新加速与窗口头部验证](UPDATE-ACCELERATION-VALIDATION.md)
 - [v0.3.4 release notes / v0.3.4 版本说明](RELEASE-v0.3.4.md)

@@ -63,9 +63,32 @@ This project focuses on a few practical principles:
 
 ## Screenshots / 截图
 
-The repository includes native Windows captures and a browsable design gallery. The HTML prototype is illustrative; it does not access the real clipboard or replace native validation.
+Native Windows UI with demo content. Click an image to view it at full size; download progress is shown as an example.
 
-仓库包含 Windows 原生截图和可浏览的设计图库。HTML 原型用于展示交互，不会访问真实剪贴板，也不能替代原生验收。
+以下为使用演示数据的 Windows 原生界面。点击图片可查看原图；下载进度为示例。
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <strong>History / 历史管理</strong><br><br>
+      <a href="docs/native-screenshots/readme-v036/manager-light.png"><img src="docs/native-screenshots/readme-v036/manager-light.png" alt="Native history manager with search, pinned entries and rich-text preview / 原生历史管理、搜索、置顶与富文本预览" width="400"></a>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <strong>Quick panel / 快捷面板</strong><br><br>
+      <a href="docs/native-screenshots/readme-v036/quick-dark.png"><img src="docs/native-screenshots/readme-v036/quick-dark.png" alt="Dark quick panel with history filters and keyboard actions / 深色快捷面板、分类筛选和键盘操作" width="260"></a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top">
+      <strong>Updates / 应用更新</strong><br><br>
+      <a href="docs/native-screenshots/readme-v036/settings-about-light.png"><img src="docs/native-screenshots/readme-v036/settings-about-light.png" alt="Update card with an edge-aligned version badge and background download progress / 版本号贴边角标与下载背景进度" width="400"></a>
+    </td>
+    <td align="center" valign="top">
+      <strong>Encrypted WebDAV / WebDAV 加密同步</strong><br><br>
+      <a href="docs/native-screenshots/webdav-native/webdav-connected-dark.png"><img src="docs/native-screenshots/webdav-native/webdav-connected-dark.png" alt="WebDAV connection settings and encrypted synchronization status / WebDAV 连接配置与加密同步状态" width="400"></a>
+    </td>
+  </tr>
+</table>
 
 - [Native UI polish gallery / 原生界面精修图库](docs/native-screenshots/polish/index.html)
 - [Window and tray gallery / 窗口与托盘图库](docs/native-screenshots/window-fixes/index.html)

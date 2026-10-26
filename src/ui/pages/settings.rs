@@ -1009,18 +1009,12 @@ impl Desktop {
                     .flex_col()
                     .gap(px(8.))
                     .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .gap_3()
-                            .child(
-                                div()
-                                    .text_size(px(14.))
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .child(tr("应用更新")),
-                            )
-                            .child(badge(env!("CARGO_PKG_VERSION"), false, cx)),
+                        div().flex().items_center().justify_between().gap_3().child(
+                            div()
+                                .text_size(px(14.))
+                                .font_weight(FontWeight::MEDIUM)
+                                .child(tr("应用更新")),
+                        ),
                     )
                     .child(
                         div()
@@ -1030,6 +1024,19 @@ impl Desktop {
                             .child(div().flex_1().min_w_0().child(value(&status, cx)))
                             .child(div().flex_shrink_0().child(control)),
                     ),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .right_0()
+                    .px(px(7.))
+                    .py(px(3.))
+                    .rounded_bl(px(5.))
+                    .text_size(px(11.))
+                    .text_color(cx.theme().muted_foreground)
+                    .bg(cx.theme().muted)
+                    .child(env!("CARGO_PKG_VERSION")),
             )
             .into_any_element();
         let mut rows = vec![update_card];
