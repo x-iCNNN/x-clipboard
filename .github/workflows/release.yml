@@ -67,5 +67,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) { Write-Output 'Release already exists; preserving its assets.'; exit 0 }
           $archive = "dist/x-clipboard-$env:GITHUB_REF_NAME-windows-x64.zip"
           $setup = "dist/x-clipboard-$env:GITHUB_REF_NAME-windows-x64-setup.exe"
-          gh release create $env:GITHUB_REF_NAME $archive "$archive.sha256" $setup "$setup.sha256" --verify-tag --title "X Clipboard $env:GITHUB_REF_NAME" --generate-notes
+          $notes = "docs/RELEASE-$env:GITHUB_REF_NAME.md"
+          if (-not (Test-Path -LiteralPath $notes)) { throw 'Version-specific bilingual release notes are required' }
+          gh release create $env:GITHUB_REF_NAME $archive "$archive.sha256" $setup "$setup.sha256" --verify-tag --title "X Clipboard $env:GITHUB_REF_NAME" --notes-file $notes
           if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publication failed' }

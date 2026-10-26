@@ -413,6 +413,9 @@ async fn run(
     output: &std::path::Path,
 ) -> Result<()> {
     std::fs::create_dir_all(output)?;
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_DISMISS").as_deref() == Ok("1") {
+        return check_quick_dismiss(cx, output).await;
+    }
     if let Ok(shortcut) = std::env::var("X_CLIPBOARD_UI_REVIEW_PASTE_SHORTCUT") {
         let mut settings = service.snapshot().settings;
         settings.paste_shortcut = shortcut.clone();
@@ -870,7 +873,14 @@ async fn check_middle_click(
     lifecycle_tick(cx, 200).await;
     let view = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Settings].1.clone());
     let initial = service.snapshot().settings.middle_click_activation;
-    for enabled in [initial, true, false, true, false, true] {
+    let enabled_only =
+        std::env::var("X_CLIPBOARD_UI_REVIEW_MIDDLE_ENABLED_ONLY").as_deref() == Ok("1");
+    let states = if enabled_only {
+        vec![true, true]
+    } else {
+        vec![initial, true, false, true, false, true]
+    };
+    for enabled in states {
         cx.update(|cx| {
             if let Some((handle, _)) = cx.global::<Owner>().windows.get(&Kind::Quick).cloned() {
                 let _ = handle.update(cx, |_, window, cx| hide(window, cx));
@@ -964,7 +974,8 @@ async fn check_middle_click(
         );
         ensure!(
             CLICKS.load(Ordering::Acquire) == if enabled { 0 } else { 2 },
-            "middle click not consumed/restored correctly"
+            "middle click not consumed/restored correctly: enabled={enabled}, delivered={}",
+            CLICKS.load(Ordering::Acquire)
         );
         if enabled {
             ensure!(
@@ -978,12 +989,213 @@ async fn check_middle_click(
     std::fs::write(
         output.join("middle-click-result.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
-            "initial_saved_setting":initial, "repeated_enable_disable":true,
+            "initial_saved_setting":initial, "repeated_enable_disable":!enabled_only,
             "native_sendinput":true,"middle_click_consumed_when_enabled":true,
-            "middle_click_restored_when_disabled":true,"original_paste_target_preserved":true
+            "middle_click_restored_when_disabled":!enabled_only,"original_paste_target_preserved":true
         }))?,
     )?;
     Ok(())
+}
+
+async fn check_quick_dismiss(cx: &mut AsyncApp, output: &std::path::Path) -> Result<()> {
+    use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
+    struct Cursor(POINT);
+    impl Drop for Cursor {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = SetCursorPos(self.0.x, self.0.y);
+            }
+        }
+    }
+    let mut old_cursor = POINT::default();
+    unsafe {
+        GetCursorPos(&mut old_cursor)?;
+    }
+    let _cursor = Cursor(old_cursor);
+    unsafe extern "system" fn target_proc(
+        hwnd: HWND,
+        message: u32,
+        w: WPARAM,
+        l: LPARAM,
+    ) -> LRESULT {
+        unsafe { DefWindowProcW(hwnd, message, w, l) }
+    }
+    let target = unsafe {
+        use windows::core::w;
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(target_proc),
+            lpszClassName: w!("XClipboardDismissTarget"),
+            ..Default::default()
+        };
+        ensure!(
+            RegisterClassW(&class) != 0,
+            "cannot register dismiss target"
+        );
+        CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            w!("XClipboardDismissTarget"),
+            w!("Dismiss probe"),
+            WS_OVERLAPPEDWINDOW,
+            40,
+            40,
+            960,
+            760,
+            None,
+            None,
+            None,
+            None,
+        )?
+    };
+    struct Target(HWND);
+    impl Drop for Target {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = DestroyWindow(self.0);
+            }
+        }
+    }
+    let _target = Target(target);
+    unsafe {
+        SetWindowPos(
+            target,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+        )?;
+        let _ = ShowWindow(target, SW_SHOW);
+        let _ = ShowWindow(target, SW_SHOWNORMAL);
+        let _ = SetForegroundWindow(target);
+        let mut rect = RECT::default();
+        GetWindowRect(target, &mut rect)?;
+        let point = POINT {
+            x: rect.left + 30,
+            y: rect.top + 100,
+        };
+        if GetForegroundWindow() != target {
+            click_owned(target, point).context("activate original")?;
+        }
+    }
+    lifecycle_tick(cx, 120).await;
+    ensure!(
+        unsafe { GetForegroundWindow() } == target,
+        "owned original window not foreground"
+    );
+    cx.update(|cx| {
+        cx.global_mut::<Owner>().target = platform::foreground();
+        open_window(Kind::Quick, cx);
+    });
+    lifecycle_tick(cx, 400).await;
+    let quick_handle = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Quick].0);
+    let quick =
+        cx.update(|cx| quick_handle.update(cx, |_, window, _| HWND(native(window) as *mut _)))?;
+    let mut target_rect = RECT::default();
+    unsafe {
+        GetWindowRect(target, &mut target_rect)?;
+        SetWindowPos(
+            quick,
+            Some(HWND_TOPMOST),
+            target_rect.right - 400,
+            target_rect.top + 80,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOACTIVATE,
+        )?;
+        let mut rect = RECT::default();
+        GetWindowRect(quick, &mut rect)?;
+        click_owned(
+            quick,
+            POINT {
+                x: rect.left + 20,
+                y: rect.top + 140,
+            },
+        )
+        .context("click inside quick")?;
+    }
+    lifecycle_tick(cx, 180).await;
+    ensure!(
+        unsafe { IsWindowVisible(quick) }.as_bool(),
+        "inside click dismissed panel"
+    );
+    ensure!(
+        unsafe { GetForegroundWindow() } == target,
+        "panel stole original focus: target={target:?}, quick={quick:?}, actual={:?}",
+        unsafe { GetForegroundWindow() }
+    );
+    unsafe {
+        click_owned(
+            target,
+            POINT {
+                x: target_rect.left + 30,
+                y: target_rect.top + 100,
+            },
+        )?;
+    }
+    lifecycle_tick(cx, 180).await;
+    ensure!(
+        !unsafe { IsWindowVisible(quick) }.as_bool(),
+        "outside click in original window did not dismiss quick panel"
+    );
+    cx.update(|cx| {
+        cx.global_mut::<Owner>().target = platform::foreground();
+        open_window(Kind::Quick, cx);
+    });
+    lifecycle_tick(cx, 350).await;
+    cx.update(|cx| open_window(Kind::Main, cx));
+    lifecycle_tick(cx, 250).await;
+    ensure!(
+        !unsafe { IsWindowVisible(quick) }.as_bool(),
+        "foreground window change did not dismiss quick panel"
+    );
+    cx.update(|cx| {
+        cx.global_mut::<Owner>().target = platform::foreground();
+        open_window(Kind::Quick, cx);
+    });
+    lifecycle_tick(cx, 350).await;
+    let second = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Quick].0);
+    ensure!(
+        cx.update(|cx| second.update(cx, |_, window, _| unsafe {
+            IsWindowVisible(HWND(native(window) as *mut _))
+        }
+        .as_bool()))?,
+        "panel failed to reopen after dismissal"
+    );
+    std::fs::write(
+        output.join("dismiss-result.json"),
+        r#"{"inside_click_preserved":true,"original_focus_preserved":true,"outside_click_dismissed":true,"foreground_change_dismissed":true,"reopen_passed":true}"#,
+    )?;
+    Ok(())
+}
+
+unsafe fn click_owned(
+    root: windows::Win32::Foundation::HWND,
+    point: windows::Win32::Foundation::POINT,
+) -> Result<()> {
+    use windows::Win32::UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*};
+    unsafe {
+        ensure!(
+            GetAncestor(WindowFromPoint(point), GA_ROOT) == root,
+            "owned click target obscured; refuse input: expected={root:?}, actual={:?}, point={point:?}",
+            GetAncestor(WindowFromPoint(point), GA_ROOT)
+        );
+        SetCursorPos(point.x, point.y)?;
+        let input = [MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP].map(|flags| INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dwFlags: flags,
+                    ..Default::default()
+                },
+            },
+        });
+        ensure!(
+            SendInput(&input, std::mem::size_of::<INPUT>() as i32) == 2,
+            "owned click denied"
+        );
+        Ok(())
+    }
 }
 
 async fn check_initial_quick_size(cx: &mut AsyncApp, output: &std::path::Path) -> Result<()> {

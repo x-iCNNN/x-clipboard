@@ -31,6 +31,8 @@ static MOUSE_HOOK: AtomicUsize = AtomicUsize::new(0);
 static MIDDLE_HELD: AtomicBool = AtomicBool::new(false);
 static MIDDLE_TARGET: AtomicUsize = AtomicUsize::new(0);
 const INPUT_ORIGIN: usize = 0x58434c50;
+static QUICK_MOUSE_HOOK: AtomicUsize = AtomicUsize::new(0);
+static QUICK_DISMISS: AtomicBool = AtomicBool::new(false);
 static QUICK_PANEL: AtomicUsize = AtomicUsize::new(0);
 static QUICK_TARGET: AtomicUsize = AtomicUsize::new(0);
 static QUICK_KEYS: AtomicU32 = AtomicU32::new(0);
@@ -874,6 +876,7 @@ fn restore_paste_focus(window: HWND, saved: PasteFocus) -> Result<()> {
     Ok(())
 }
 pub fn hide_window(handle: usize) {
+    stop_quick_watch(handle);
     unsafe {
         let _ = ShowWindow(HWND(handle as *mut _), SW_HIDE);
     }
@@ -918,6 +921,7 @@ unsafe extern "system" fn quick_panel_proc(
             return LRESULT(MA_NOACTIVATE as isize);
         }
         if message == WM_NCDESTROY {
+            stop_quick_watch(hwnd.0 as usize);
             let _ = QUICK_PANEL.compare_exchange(
                 hwnd.0 as usize,
                 0,
@@ -977,6 +981,52 @@ unsafe extern "system" fn search_message_hook(code: i32, w: WPARAM, l: LPARAM) -
         CallNextHookEx(None, code, w, l)
     }
 }
+fn stop_quick_watch(handle: usize) {
+    if QUICK_PANEL.load(Ordering::Acquire) == handle {
+        let hook = QUICK_MOUSE_HOOK.swap(0, Ordering::AcqRel);
+        if hook != 0 {
+            let _ = unsafe { UnhookWindowsHookEx(HHOOK(hook as *mut _)) };
+        }
+        QUICK_DISMISS.store(false, Ordering::Release);
+    }
+}
+unsafe extern "system" fn quick_mouse_hook(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
+    if code >= 0
+        && matches!(
+            w.0 as u32,
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_XBUTTONDOWN
+        )
+        && !(w.0 as u32 == WM_MBUTTONDOWN && MOUSE_HOOK.load(Ordering::Acquire) != 0)
+    {
+        let panel = HWND(QUICK_PANEL.load(Ordering::Acquire) as *mut _);
+        unsafe {
+            if IsWindowVisible(panel).as_bool() {
+                let data = &*(l.0 as *const MSLLHOOKSTRUCT);
+                let hit = WindowFromPoint(data.pt);
+                if GetAncestor(hit, GA_ROOT) != panel && GetAncestor(hit, GA_ROOTOWNER) != panel {
+                    QUICK_DISMISS.store(true, Ordering::Release);
+                }
+            }
+        }
+    }
+    unsafe { CallNextHookEx(None, code, w, l) }
+}
+pub fn quick_panel_should_dismiss(handle: usize) -> bool {
+    unsafe {
+        let panel = HWND(handle as *mut _);
+        if !IsWindowVisible(panel).as_bool() {
+            return false;
+        }
+        let foreground = GetForegroundWindow();
+        let target = QUICK_TARGET.load(Ordering::Acquire);
+        QUICK_DISMISS.swap(false, Ordering::AcqRel)
+            || (target != 0
+                && !foreground.0.is_null()
+                && foreground.0 as usize != target
+                && foreground != panel
+                && GetAncestor(foreground, GA_ROOTOWNER) != panel)
+    }
+}
 pub fn quick_panel_keeps_focus(handle: usize) -> bool {
     if handle == 0 {
         return false;
@@ -1008,6 +1058,16 @@ pub fn prepare_quick_panel(handle: usize, target: usize) -> Result<()> {
         QUICK_TARGET.store(target, Ordering::Release);
         QUICK_PANEL.store(handle, Ordering::Release);
         QUICK_SEARCH.store(false, Ordering::Release);
+        QUICK_DISMISS.store(false, Ordering::Release);
+        if QUICK_MOUSE_HOOK.load(Ordering::Acquire) == 0 {
+            let hook = SetWindowsHookExW(
+                WH_MOUSE_LL,
+                Some(quick_mouse_hook),
+                Some(GetModuleHandleW(None)?.into()),
+                0,
+            )?;
+            QUICK_MOUSE_HOOK.store(hook.0 as usize, Ordering::Release);
+        }
     }
     Ok(())
 }

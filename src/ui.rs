@@ -384,6 +384,11 @@ fn poll(cx: &mut App) {
             continue;
         }
         let _ = handle.update(cx, |_, window, cx| {
+            #[cfg(windows)]
+            if kind == Kind::Quick && platform::quick_panel_should_dismiss(native(window)) {
+                hide(window, cx);
+                return;
+            }
             view.update(cx, |this, cx| this.sync(window, cx));
         });
     }
@@ -778,7 +783,9 @@ impl Desktop {
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         cx.observe_window_activation(window, |this, window, cx| {
-            if this.kind == Kind::Tray && !window.is_window_active() {
+            if (this.kind == Kind::Tray || (!cfg!(windows) && this.kind == Kind::Quick))
+                && !window.is_window_active()
+            {
                 hide(window, cx);
             }
         })
