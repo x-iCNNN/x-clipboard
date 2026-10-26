@@ -21,3 +21,10 @@ Date / 日期：2026-10-26
 - This machine already had a user desktop shortcut. The disposable package probe disabled shortcut creation and left that existing shortcut intact; it did not rerun shortcut creation acceptance.
 - ZIP SHA-256: `9f133ea6280182191470b0ee09bd098ff21e1322ddea4ba7d77e4eb00e39eae5`.
 - Setup SHA-256: `5de083542ac84a17f2572be2c8f9fbcf89976e17db4e91ea592132774295fb1c`.
+
+## Public release / 公开发布
+
+- Published: https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.1 (2026-10-26, Asia/Shanghai).
+- `/releases/latest` returned `v0.3.1`, `draft=false`, four assets; all four GitHub SHA-256 digests and sizes matched local files before publication.
+- Remote tag points to `77b54f3a25fa76b1581e118d05a563216295de5f`; tracked build inputs match the packaged workspace after line-ending normalization.
+- `cargo test --locked --no-default-features --lib updater::tests::github_live_check -- --ignored --nocapture`: passed against the public release, including actual portable download, GitHub SHA-256 verification, ZIP extraction, and no update offered for the same version.
