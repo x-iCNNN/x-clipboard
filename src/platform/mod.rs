@@ -2,6 +2,17 @@ use crate::model::ClipContent;
 use anyhow::Result;
 use crossbeam_channel::Sender;
 
+#[derive(Debug)]
+pub struct ClipboardSuperseded;
+
+impl std::fmt::Display for ClipboardSuperseded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("剪贴板已被更新的复制内容替换")
+    }
+}
+
+impl std::error::Error for ClipboardSuperseded {}
+
 #[derive(Clone, Debug)]
 pub enum PlatformEvent {
     Changed(u32),

@@ -561,12 +561,14 @@ mod tests {
         settings.show_tray_icon = false;
         settings.middle_click_activation = true;
         settings.paste_shortcut = "Shift+Insert".into();
+        settings.frosted_background = true;
         store.save_settings(&settings)?;
         drop(store);
         let restored = HistoryStore::open_with_key(dir.path(), &key)?.settings()?;
         assert!(!restored.show_tray_icon);
         assert!(restored.middle_click_activation);
         assert_eq!(restored.paste_shortcut, "Shift+Insert");
+        assert!(restored.frosted_background);
         Ok(())
     }
     #[test]

@@ -92,6 +92,20 @@ pub struct Service {
     queued_bytes: Arc<AtomicUsize>,
     search_generation: Arc<AtomicU64>,
 }
+fn read_capture(
+    mut version: u32,
+    mut read: impl FnMut(u32) -> anyhow::Result<Option<ClipContent>>,
+) -> anyhow::Result<Option<ClipContent>> {
+    for _ in 0..3 {
+        match read(version) {
+            Err(error) if error.is::<platform::ClipboardSuperseded>() => version = 0,
+            result => return result,
+        }
+    }
+    // Continuous copying will enqueue another notification. Never save a mixed snapshot.
+    Ok(None)
+}
+
 fn thumbnail_source(mut content: ClipContent) -> ClipContent {
     let selected = content
         .formats
@@ -143,7 +157,9 @@ impl Service {
                             if !snapshot.ready || settings.paused || snapshot.quitting {
                                 continue;
                             }
-                            match capture.backend.read(version, settings.respect_sensitive) {
+                            match read_capture(version, |version| {
+                                capture.backend.read(version, settings.respect_sensitive)
+                            }) {
                                 Ok(Some(content)) => {
                                     if settings.excluded_apps.iter().any(|s| {
                                         !s.is_empty() && content.source.eq_ignore_ascii_case(s)
@@ -170,32 +186,6 @@ impl Service {
                                 Ok(None) => {}
                                 Err(e) => {
                                     capture.error(e.to_string());
-                                    // A superseded notification cannot recover the old version, but still capture the current one.
-                                    if let Ok(Some(content)) =
-                                        capture.backend.read(0, settings.respect_sensitive)
-                                        && !settings
-                                            .excluded_apps
-                                            .iter()
-                                            .any(|s| content.source.eq_ignore_ascii_case(s))
-                                    {
-                                        let bytes = content.bytes() as usize;
-                                        if capture.queued_bytes.fetch_add(bytes, Ordering::AcqRel)
-                                            + bytes
-                                            <= 128 * 1024 * 1024
-                                        {
-                                            if capture
-                                                .tx
-                                                .try_send(Command::Capture(content))
-                                                .is_err()
-                                            {
-                                                capture
-                                                    .queued_bytes
-                                                    .fetch_sub(bytes, Ordering::AcqRel);
-                                            }
-                                        } else {
-                                            capture.queued_bytes.fetch_sub(bytes, Ordering::AcqRel);
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -854,6 +844,41 @@ impl Service {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn rapid_copy_retries_latest_without_an_error() {
+        let mut calls = Vec::new();
+        let result = read_capture(41, |version| {
+            calls.push(version);
+            if version == 41 {
+                return Err(platform::ClipboardSuperseded.into());
+            }
+            Ok(Some(ClipContent::text("latest copy")))
+        });
+        assert!(
+            result.is_ok(),
+            "superseded copy must not become an error toast"
+        );
+        assert_eq!(result.unwrap().unwrap().text, "latest copy");
+        assert_eq!(calls, [41, 0]);
+    }
+
+    #[test]
+    fn rapid_copy_keeps_real_read_failures_visible() {
+        let result = read_capture(41, |_| anyhow::bail!("clipboard busy"));
+        assert_eq!(result.err().unwrap().to_string(), "clipboard busy");
+    }
+
+    #[test]
+    fn rapid_copy_retry_is_bounded_and_discards_unstable_content() {
+        let mut calls = 0;
+        let result = read_capture(41, |_| {
+            calls += 1;
+            Err(platform::ClipboardSuperseded.into())
+        });
+        assert!(matches!(result, Ok(None)));
+        assert_eq!(calls, 3);
+    }
+
     struct Backend;
     impl ClipboardBackend for Backend {
         fn read(&self, _: u32, _: bool) -> anyhow::Result<Option<ClipContent>> {

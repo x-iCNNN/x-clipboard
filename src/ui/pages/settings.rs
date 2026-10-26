@@ -153,7 +153,7 @@ impl Desktop {
                     .flex()
                     .flex_col()
                     .gap(px(9.))
-                    .child(section_heading("火绒黄 · 默认外观"))
+                    .child(section_heading("默认外观"))
                     .child(
                         div().flex().gap(px(12.)).children(
                             [("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")]
@@ -212,7 +212,7 @@ impl Desktop {
                     Button::new("builtin-theme")
                         .small()
                         .label(if ["system", "light", "dark"].contains(&s.theme.as_str()) {
-                            tr("火绒黄（默认）").to_owned()
+                            tr("默认主题").to_owned()
                         } else {
                             s.theme.clone()
                         })
@@ -231,6 +231,18 @@ impl Desktop {
             .child(section(
                 "显示",
                 vec![
+                    if cfg!(windows) {
+                        self.switch_row(
+                            "磨玻璃效果",
+                            "为窗口背景添加半透明模糊效果。",
+                            s.frosted_background,
+                            |s, on| s.frosted_background = on,
+                            false,
+                            cx,
+                        )
+                    } else {
+                        div().into_any_element()
+                    },
                     setting_row(
                         "列表密度",
                         "调整历史记录之间的留白。",
@@ -1030,13 +1042,13 @@ impl Desktop {
                     .absolute()
                     .top_0()
                     .right_0()
-                    .px(px(7.))
+                    .px(px(12.))
                     .py(px(3.))
                     .rounded_bl(px(5.))
                     .text_size(px(11.))
                     .text_color(cx.theme().muted_foreground)
                     .bg(cx.theme().muted)
-                    .child(env!("CARGO_PKG_VERSION")),
+                    .child(format!("v{}", env!("CARGO_PKG_VERSION"))),
             )
             .into_any_element();
         let mut rows = vec![update_card];

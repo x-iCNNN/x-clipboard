@@ -27,7 +27,7 @@ impl Desktop {
             .p(px(4.))
             .border_1()
             .border_color(cx.theme().border)
-            .bg(cx.theme().popover)
+            .bg(self.surface(cx.theme().popover))
             .text_color(cx.theme().popover_foreground)
             .flex()
             .flex_col();

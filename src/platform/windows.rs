@@ -408,7 +408,7 @@ impl ClipboardBackend for PlatformClipboard {
             return Ok(None);
         }
         if version != 0 && actual != version {
-            bail!("复制变化过快：上一版剪贴板在读取前已被覆盖");
+            return Err(ClipboardSuperseded.into());
         }
         if respect_sensitive
             && unsafe {

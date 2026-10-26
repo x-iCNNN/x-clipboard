@@ -424,6 +424,13 @@ fn register_shortcut(value: &str, cx: &mut App) -> anyhow::Result<()> {
 fn register_shortcut(_: &str, _: &mut App) -> anyhow::Result<()> {
     Ok(())
 }
+fn background_appearance(settings: &Settings) -> WindowBackgroundAppearance {
+    if cfg!(windows) && settings.frosted_background {
+        WindowBackgroundAppearance::Blurred
+    } else {
+        WindowBackgroundAppearance::Opaque
+    }
+}
 fn open_window(kind: Kind, cx: &mut App) {
     // Navigation may originate inside the same window's callback. Reuse it only
     // after that callback releases GPUI's window borrow.
@@ -477,6 +484,7 @@ fn open_window_now(kind: Kind, cx: &mut App) {
         Kind::Tray => (224., 200.),
     };
     let options = WindowOptions {
+        window_background: background_appearance(&cx.global::<Owner>().service.snapshot().settings),
         focus: !(cfg!(windows) && kind == Kind::Quick),
         show: !(cfg!(windows) && kind == Kind::Quick),
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
@@ -750,9 +758,25 @@ struct Desktop {
     tray_selected: Option<usize>,
 }
 impl Desktop {
+    fn surface(&self, color: Hsla) -> Hsla {
+        if cfg!(windows) && self.snapshot.settings.frosted_background {
+            color.opacity(0.84)
+        } else {
+            color
+        }
+    }
     fn new(kind: Kind, service: Service, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let snapshot = service.snapshot();
         let settings = &snapshot.settings;
+        window.set_background_appearance(background_appearance(settings));
+        // Component Root defaults to an opaque fill. Let this view own its surface
+        // so native acrylic can show through without altering the global theme.
+        cx.defer_in(window, |_, window, cx| {
+            gpui_kit::base::Root::update(window, cx, |root, _, cx| {
+                root.style().background = Some(cx.theme().background.opacity(0.).into());
+                cx.notify();
+            });
+        });
         apply_language(&settings.language);
         let search =
             cx.new(|cx| InputState::new(window, cx).placeholder(tr("搜索内容、文件名称或来源…")));
@@ -881,6 +905,9 @@ impl Desktop {
                 });
             }
             self.sync_inputs_loaded = true;
+        }
+        if snapshot.settings.frosted_background != self.snapshot.settings.frosted_background {
+            window.set_background_appearance(background_appearance(&snapshot.settings));
         }
         if snapshot.settings.theme != self.snapshot.settings.theme {
             apply_theme(&snapshot.settings.theme, cx);
@@ -1366,14 +1393,16 @@ impl Render for Desktop {
         let mut root = div()
             .size_full()
             .relative()
-            .bg(cx.theme().background)
+            .bg(self.surface(cx.theme().background))
             .text_color(cx.theme().foreground)
             .text_size(px(14.))
             .font_family(cx.theme().font_family.clone())
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::keyboard));
         if self.kind == Kind::Tray {
-            return root.bg(cx.theme().popover).child(self.tray_panel(cx));
+            return root
+                .bg(self.surface(cx.theme().popover))
+                .child(self.tray_panel(cx));
         }
         if self.kind == Kind::Welcome {
             root = root.child(self.welcome(window, cx));
@@ -1559,11 +1588,7 @@ fn keycap(label: impl Into<SharedString>, cx: &App) -> AnyElement {
 }
 fn theme_menu(mut menu: PopupMenu, service: Service, selected: &str, cx: &App) -> PopupMenu {
     menu = menu.scrollable(true).max_h(px(360.));
-    for (name, label) in [
-        ("system", "火绒黄 · 跟随系统"),
-        ("light", "火绒黄 · 浅色"),
-        ("dark", "火绒黄 · 深色"),
-    ] {
+    for (name, label) in [("system", "跟随系统"), ("light", "浅色"), ("dark", "深色")] {
         let service = service.clone();
         menu = menu.item(
             PopupMenuItem::new(tr(label))

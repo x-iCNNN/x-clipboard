@@ -92,7 +92,7 @@ impl ClipboardBackend for PlatformClipboard {
         }
         let before = self.version.load(Ordering::Acquire);
         if version != 0 && version != before {
-            bail!("复制变化过快：上一版内容在读取前已覆盖");
+            return Err(ClipboardSuperseded.into());
         }
         if let Ok(token) = clipboard.get_buffer("application/x-xclipboard-origin") {
             let mut own = self.own_token.lock().unwrap();
@@ -166,15 +166,13 @@ impl ClipboardBackend for PlatformClipboard {
                 bytes: content.files.join("\n").into_bytes(),
             });
         }
-        ensure!(
-            before == self.version.load(Ordering::Acquire),
-            "读取期间剪贴板已变化，本次快照已丢弃"
-        );
+        if before != self.version.load(Ordering::Acquire) {
+            return Err(ClipboardSuperseded.into());
+        }
         #[cfg(target_os = "macos")]
-        ensure!(
-            pasteboard_count == objc2_app_kit::NSPasteboard::generalPasteboard().changeCount(),
-            "读取期间剪贴板已变化，本次快照已丢弃"
-        );
+        if pasteboard_count != objc2_app_kit::NSPasteboard::generalPasteboard().changeCount() {
+            return Err(ClipboardSuperseded.into());
+        }
         content.source = "系统剪贴板".into();
         if content.formats.is_empty() {
             return Ok(None);

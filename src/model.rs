@@ -134,6 +134,7 @@ pub struct Entry {
 pub struct Settings {
     pub language: String,
     pub theme: String,
+    pub frosted_background: bool,
     pub shortcut: String,
     pub paste_shortcut: String,
     pub max_entries: usize,
@@ -157,6 +158,7 @@ impl Default for Settings {
         Self {
             language: "zh-CN".into(),
             theme: "system".into(),
+            frosted_background: false,
             shortcut: if cfg!(windows) {
                 "Win+V"
             } else if cfg!(target_os = "macos") {
@@ -260,6 +262,15 @@ mod tests {
         assert_eq!(restored.paste_shortcut, "Shift+Insert");
         settings.paste_shortcut = "Enter".into();
         assert!(settings.validate().is_err());
+    }
+    #[test]
+    fn frosted_background_is_opt_in_and_roundtrips() {
+        let mut settings: Settings = serde_json::from_str("{}").unwrap();
+        assert!(!settings.frosted_background);
+        settings.frosted_background = true;
+        let restored: Settings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert!(restored.frosted_background);
     }
     #[test]
     fn dedup_is_format_sensitive_and_preserves_whitespace() {

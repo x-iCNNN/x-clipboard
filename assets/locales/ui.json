@@ -4981,5 +4981,51 @@
     "Obtenir les versions stables depuis GitHub.",
     "Stabile Versionen von GitHub beziehen.",
     "Obter versões estáveis do GitHub."
+  ],
+  "磨玻璃效果": [
+    "磨玻璃效果",
+    "磨砂玻璃效果",
+    "Frosted glass",
+    "すりガラス効果",
+    "반투명 유리 효과",
+    "Cristal esmerilado",
+    "Verre dépoli",
+    "Milchglaseffekt",
+    "Vidro fosco"
+  ],
+  "为窗口背景添加半透明模糊效果。": [
+    "为窗口背景添加半透明模糊效果。",
+    "為視窗背景加入半透明模糊效果。",
+    "Add a translucent blur to window backgrounds.",
+    "ウィンドウ背景に半透明のぼかしを追加します。",
+    "창 배경에 반투명 흐림 효과를 적용합니다.",
+    "Añade desenfoque translúcido al fondo de las ventanas.",
+    "Ajoute un flou translucide à l’arrière-plan des fenêtres.",
+    "Fügt Fensterhintergründen eine transparente Unschärfe hinzu.",
+    "Adiciona desfoque translúcido ao fundo das janelas."
+  ]
+,
+  "默认外观": [
+    "默认外观",
+    "預設外觀",
+    "Default appearance",
+    "標準の外観",
+    "기본 모양",
+    "Apariencia predeterminada",
+    "Apparence par défaut",
+    "Standarddarstellung",
+    "Aparência padrão"
+  ]
+,
+  "默认主题": [
+    "默认主题",
+    "預設主題",
+    "Default theme",
+    "標準テーマ",
+    "기본 테마",
+    "Tema predeterminado",
+    "Thème par défaut",
+    "Standarddesign",
+    "Tema padrão"
   ]
 }

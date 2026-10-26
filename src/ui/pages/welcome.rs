@@ -31,7 +31,7 @@ impl Desktop {
             .w(px(220.))
             .h_full()
             .flex_shrink_0()
-            .bg(cx.theme().sidebar)
+            .bg(self.surface(cx.theme().sidebar))
             .border_r_1()
             .border_color(cx.theme().border)
             .px(px(25.))

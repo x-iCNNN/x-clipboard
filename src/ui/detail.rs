@@ -10,7 +10,7 @@ impl Desktop {
             .h_full()
             .border_l_1()
             .border_color(cx.theme().border)
-            .bg(cx.theme().background)
+            .bg(self.surface(cx.theme().background))
             .flex()
             .flex_col();
         let Some(id) = self.selected.clone() else {

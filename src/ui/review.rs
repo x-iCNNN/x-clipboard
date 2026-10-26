@@ -413,6 +413,9 @@ async fn run(
     output: &std::path::Path,
 ) -> Result<()> {
     std::fs::create_dir_all(output)?;
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_FROSTED").as_deref() == Ok("1") {
+        return check_frosted(cx, service, output).await;
+    }
     if std::env::var("X_CLIPBOARD_UI_REVIEW_DISMISS").as_deref() == Ok("1") {
         return check_quick_dismiss(cx, output).await;
     }
@@ -1222,6 +1225,240 @@ unsafe fn click_owned(
         );
         Ok(())
     }
+}
+
+struct FrostedBackdrop;
+impl Render for FrostedBackdrop {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().flex().children((0..12).map(|i| {
+            div()
+                .flex_1()
+                .h_full()
+                .bg(rgb([0x0866b9, 0xe8b24b, 0x26764d, 0x9f437b][i % 4]))
+        }))
+    }
+}
+fn accent_state(hwnd: windows::Win32::Foundation::HWND) -> Result<Option<u32>> {
+    use windows::{
+        Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress},
+        core::{BOOL, w},
+    };
+    #[repr(C)]
+    struct Accent {
+        state: u32,
+        flags: u32,
+        color: u32,
+        animation: u32,
+    }
+    #[repr(C)]
+    struct Data {
+        attribute: u32,
+        value: *mut std::ffi::c_void,
+        size: usize,
+    }
+    unsafe {
+        let proc = GetProcAddress(
+            GetModuleHandleW(w!("user32.dll"))?,
+            windows::core::PCSTR(c"GetWindowCompositionAttribute".as_ptr().cast()),
+        )
+        .context("composition query unavailable")?;
+        let get: unsafe extern "system" fn(windows::Win32::Foundation::HWND, *mut Data) -> BOOL =
+            std::mem::transmute(proc);
+        let mut accent = Accent {
+            state: 0,
+            flags: 0,
+            color: 0,
+            animation: 0,
+        };
+        let mut data = Data {
+            attribute: 19,
+            value: (&mut accent as *mut Accent).cast(),
+            size: std::mem::size_of::<Accent>(),
+        };
+        if !get(hwnd, &mut data).as_bool() {
+            return Ok(None);
+        }
+        Ok(Some(accent.state))
+    }
+}
+async fn check_frosted(
+    cx: &mut AsyncApp,
+    service: &Service,
+    output: &std::path::Path,
+) -> Result<()> {
+    use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
+    let backdrop = cx.update(|cx| {
+        cx.open_window(
+            WindowOptions {
+                titlebar: None,
+                focus: false,
+                show: true,
+                window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
+                    None,
+                    size(px(1140.), px(800.)),
+                    cx,
+                ))),
+                ..Default::default()
+            },
+            |window, cx| {
+                window.set_window_title("X Clipboard · 模糊背景测试图");
+                cx.new(|_| FrostedBackdrop)
+            },
+        )
+    })?;
+    cx.update(|cx| {
+        open_window(Kind::Main, cx);
+        open_window(Kind::Settings, cx);
+    });
+    lifecycle_tick(cx, 300).await;
+    let (handle, view) = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Settings].clone());
+    cx.update(|cx| {
+        view.update(cx, |desktop, cx| {
+            desktop.route = "appearance";
+            cx.notify();
+        })
+    });
+    let initial = service.snapshot().settings.frosted_background;
+    let mut native_query = true;
+    for (step, enabled) in [true, false, true, false, true].into_iter().enumerate() {
+        cx.update(|cx| {
+            view.update(cx, |desktop, _| {
+                desktop.update_settings(|settings| settings.frosted_background = enabled)
+            })
+        });
+        for _ in 0..50 {
+            lifecycle_tick(cx, 60).await;
+            if service.snapshot().settings.frosted_background == enabled {
+                break;
+            }
+        }
+        ensure!(
+            service.snapshot().settings.frosted_background == enabled,
+            "frosted setting was not saved"
+        );
+        lifecycle_tick(cx, 180).await;
+        for kind in [Kind::Main, Kind::Settings] {
+            let window_handle = cx.update(|cx| cx.global::<Owner>().windows[&kind].0);
+            let hwnd = cx.update(|cx| {
+                window_handle.update(cx, |_, window, _| HWND(native(window) as *mut _))
+            })?;
+            if let Some(actual) = accent_state(hwnd)? {
+                ensure!(
+                    actual == if enabled { 4 } else { 0 },
+                    "native acrylic state mismatch: {kind:?}, {enabled}"
+                );
+            } else {
+                native_query = false;
+            }
+        }
+        let file = output.join(format!("appearance-{step}-{enabled}.png"));
+        let (width, scale) = cx.update(|cx| {
+            handle.update(cx, |_, window, cx| -> Result<_> {
+                window.draw(cx).clear(cx);
+                window.render_to_image()?.save(&file)?;
+                Ok((
+                    f32::from(window.viewport_size().width),
+                    window.scale_factor(),
+                ))
+            })
+        })??;
+        let frame = image::open(file)?.to_rgba8();
+        let alpha = frame
+            .get_pixel(((width - 30.) * scale) as u32, (100. * scale) as u32)
+            .0[3];
+        ensure!(
+            if enabled { alpha < 255 } else { alpha == 255 },
+            "window surface alpha mismatch: {enabled}, {alpha}"
+        );
+    }
+    let foreground = unsafe { GetForegroundWindow() };
+    cx.update(|cx| {
+        cx.global_mut::<Owner>().target = foreground.0 as usize;
+        open_window(Kind::Quick, cx);
+    });
+    lifecycle_tick(cx, 350).await;
+    let quick = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Quick].0);
+    let quick_hwnd =
+        cx.update(|cx| quick.update(cx, |_, window, _| HWND(native(window) as *mut _)))?;
+    if let Some(actual) = accent_state(quick_hwnd)? {
+        ensure!(actual == 4, "new quick panel did not inherit glass");
+    }
+    let quick_file = output.join("quick-glass.png");
+    let (width, height, scale) = cx.update(|cx| {
+        quick.update(cx, |_, window, cx| -> Result<_> {
+            window.draw(cx).clear(cx);
+            window.render_to_image()?.save(&quick_file)?;
+            Ok((
+                f32::from(window.viewport_size().width),
+                f32::from(window.viewport_size().height),
+                window.scale_factor(),
+            ))
+        })
+    })??;
+    let quick_frame = image::open(quick_file)?.to_rgba8();
+    let x_range = (20. * scale) as u32..((width - 20.) * scale) as u32;
+    let y_range = (80. * scale) as u32..((height - 40.) * scale) as u32;
+    let mut interior_alpha = 255;
+    for y in y_range {
+        for x in x_range.clone() {
+            interior_alpha = interior_alpha.min(quick_frame.get_pixel(x, y).0[3]);
+        }
+    }
+    ensure!(
+        interior_alpha < 255,
+        "new quick frame interior was not translucent"
+    );
+    ensure!(
+        unsafe { GetForegroundWindow() } == foreground,
+        "glass activation stole original focus"
+    );
+    cx.update(|cx| quick.update(cx, |_, window, cx| hide(window, cx)))?;
+    std::fs::write(
+        output.join("frosted-result.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "initial_saved_setting":initial,"repeated_enable_disable":true,
+            "composition_query_available":native_query,"native_acrylic_state":if native_query{Some(true)}else{None},"rendered_alpha_toggle":true,
+            "new_quick_inherits_glass":true,"quick_focus_preserved":true
+        }))?,
+    )?;
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_GLASS_HOLD").as_deref() == Ok("1") {
+        cx.update(|cx| {
+            if let Some((main, _)) = cx.global::<Owner>().windows.get(&Kind::Main).cloned() {
+                let _ = main.update(cx, |_, window, cx| hide(window, cx));
+            }
+            handle.update(cx, |_, window, _| {
+                window.set_window_title("X Clipboard · 磨玻璃验收")
+            })
+        })?;
+        let settings_hwnd =
+            cx.update(|cx| handle.update(cx, |_, window, _| HWND(native(window) as *mut _)))?;
+        let background_hwnd =
+            cx.update(|cx| backdrop.update(cx, |_, window, _| HWND(native(window) as *mut _)))?;
+        unsafe {
+            let mut rect = RECT::default();
+            GetWindowRect(settings_hwnd, &mut rect)?;
+            let _ = ShowWindow(background_hwnd, SW_SHOWNOACTIVATE);
+            SetWindowPos(
+                background_hwnd,
+                Some(settings_hwnd),
+                rect.left - 80,
+                rect.top - 40,
+                rect.right - rect.left + 160,
+                rect.bottom - rect.top + 80,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            )?;
+        }
+        println!(
+            "FROSTED INSPECTION READY: own patterned backdrop; close review Settings window to finish"
+        );
+        for _ in 0..3000 {
+            lifecycle_tick(cx, 60).await;
+            if !unsafe { IsWindowVisible(settings_hwnd) }.as_bool() {
+                break;
+            }
+        }
+    }
+    Ok(())
 }
 
 async fn check_logo_drag(cx: &mut AsyncApp, output: &std::path::Path) -> Result<()> {
