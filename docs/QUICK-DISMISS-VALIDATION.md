@@ -23,6 +23,7 @@ The native dismissal test passed three consecutive runs, verifying:
 - Clicking outside in that same original window hides the panel.
 - Changing foreground to another owned application window hides the panel.
 - The panel can reopen after dismissal.
+- An explicitly activated quick panel also dismisses when focus returns to the original target without a mouse click. Native activation loss to an owned popup remains within the panel scope.
 
 Additional regression:
 
@@ -35,9 +36,11 @@ Private test results: `test-data/dismiss-final/dismiss-result.json`, `dismiss-re
 
 Release notes contain only user-facing changes, in Chinese and English. Bugs use 🕷️, features ✨, and fixes 🔧; unused categories are omitted. CI requires the version-specific notes file instead of auto-generated notes.
 
-## Build and packaging / 构建与打包
 
-- Rustfmt and all-target ui-capture Clippy with warnings denied passed. Core tests: 40 passed, 2 opt-in probes ignored. Optimized Release build passed.
-- Packaged payload checksum, custom-path installation, overwrite upgrade, binary integrity, preserved synthetic user data, and uninstall passed. Shortcut creation was disabled to preserve existing user shortcuts; probe uninstall registration was removed.
-- ZIP SHA-256: `6ba392edbd44bf2947a14de813dda4ce58abb2e5e8478467dd9892e61df49b78`.
-- Setup SHA-256: `d5eb8af6fc44a66c6981b51eec1a2523a59885431af640679340ebd9d34ead60`.
+## Final build and packaging / 最终构建与打包
+
+- Rustfmt and all-target ui-capture Clippy with warnings denied passed. Final core tests: 40 passed, 2 opt-in probes ignored. Optimized Release build passed.
+- Final packaged payload checksum, custom-path installation, overwrite upgrade, binary integrity, preserved synthetic user data, and uninstall passed. Shortcut creation was disabled to preserve existing user shortcuts.
+- The final native dismissal test includes explicit activation followed by return to the original target: 	est-data/dismiss-active-confirmed/dismiss-result.json passed all six checks.
+- ZIP SHA-256: `e8df4d2ebad9278ae0efdbded0e9eb27cbccd0aa6a3c6dddfaf016d8a708a5e4`.
+- Setup SHA-256: `d55e4543ec1b48dfa74da4d317c54391eb170cb63173bdf8b941b8eaa4817e72`.

@@ -1162,9 +1162,27 @@ async fn check_quick_dismiss(cx: &mut AsyncApp, output: &std::path::Path) -> Res
         .as_bool()))?,
         "panel failed to reopen after dismissal"
     );
+    let final_quick =
+        cx.update(|cx| second.update(cx, |_, window, _| HWND(native(window) as *mut _)))?;
+    unsafe {
+        let _ = SetForegroundWindow(final_quick);
+    }
+    lifecycle_tick(cx, 120).await;
+    ensure!(
+        unsafe { GetForegroundWindow() } == final_quick,
+        "cannot activate owned quick panel for blur regression"
+    );
+    unsafe {
+        let _ = SetForegroundWindow(target);
+    }
+    lifecycle_tick(cx, 180).await;
+    ensure!(
+        !unsafe { IsWindowVisible(final_quick) }.as_bool(),
+        "activated quick panel did not dismiss when focus returned to original target"
+    );
     std::fs::write(
         output.join("dismiss-result.json"),
-        r#"{"inside_click_preserved":true,"original_focus_preserved":true,"outside_click_dismissed":true,"foreground_change_dismissed":true,"reopen_passed":true}"#,
+        r#"{"inside_click_preserved":true,"original_focus_preserved":true,"outside_click_dismissed":true,"foreground_change_dismissed":true,"reopen_passed":true,"active_panel_blur_dismissed":true}"#,
     )?;
     Ok(())
 }

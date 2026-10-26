@@ -32,6 +32,7 @@ static MIDDLE_HELD: AtomicBool = AtomicBool::new(false);
 static MIDDLE_TARGET: AtomicUsize = AtomicUsize::new(0);
 const INPUT_ORIGIN: usize = 0x58434c50;
 static QUICK_MOUSE_HOOK: AtomicUsize = AtomicUsize::new(0);
+static QUICK_ACTIVE: AtomicBool = AtomicBool::new(false);
 static QUICK_DISMISS: AtomicBool = AtomicBool::new(false);
 static QUICK_PANEL: AtomicUsize = AtomicUsize::new(0);
 static QUICK_TARGET: AtomicUsize = AtomicUsize::new(0);
@@ -915,6 +916,16 @@ unsafe extern "system" fn quick_panel_proc(
             }
             return LRESULT(0);
         }
+        if message == WM_ACTIVATE {
+            if w.0 as u16 != WA_INACTIVE as u16 {
+                QUICK_ACTIVE.store(true, Ordering::Release);
+            } else if QUICK_ACTIVE.swap(false, Ordering::AcqRel) {
+                let next = HWND(l.0 as *mut _);
+                if GetAncestor(next, GA_ROOTOWNER) != hwnd {
+                    QUICK_DISMISS.store(true, Ordering::Release);
+                }
+            }
+        }
         if message == WM_MOUSEACTIVATE
             && GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_NOACTIVATE.0 != 0
         {
@@ -988,6 +999,7 @@ fn stop_quick_watch(handle: usize) {
             let _ = unsafe { UnhookWindowsHookEx(HHOOK(hook as *mut _)) };
         }
         QUICK_DISMISS.store(false, Ordering::Release);
+        QUICK_ACTIVE.store(false, Ordering::Release);
     }
 }
 unsafe extern "system" fn quick_mouse_hook(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
@@ -1059,6 +1071,7 @@ pub fn prepare_quick_panel(handle: usize, target: usize) -> Result<()> {
         QUICK_PANEL.store(handle, Ordering::Release);
         QUICK_SEARCH.store(false, Ordering::Release);
         QUICK_DISMISS.store(false, Ordering::Release);
+        QUICK_ACTIVE.store(false, Ordering::Release);
         if QUICK_MOUSE_HOOK.load(Ordering::Acquire) == 0 {
             let hook = SetWindowsHookExW(
                 WH_MOUSE_LL,
