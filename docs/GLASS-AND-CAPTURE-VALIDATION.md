@@ -26,3 +26,13 @@
 - `cargo test --locked --no-default-features --lib`：48 通过，3 项可选测试按设计跳过。
 - `cargo clippy --locked --all-targets --features ui-capture -- -D warnings`：通过。
 - 安装版和便携版由相同 Release 构建打包；发布前校验 ZIP、安装器载荷、哈希和远端资源。
+
+## 正式发布
+
+本机大文件上传多次断开后，使用 [Windows 原生验证任务](https://github.com/x-iCNNN/x-clipboard/actions/runs/40284730128) 中成功的 Windows 作业产物，在 GitHub 内打包发布。源提交与 v0.3.7 标签均为 `34c8d69e5e7be94cc29026264ea1fd229bdb9e90`。该任务的其他平台结果不作为本次 Windows 发布验收依据。
+
+[发布流程](https://github.com/x-iCNNN/x-clipboard/actions/runs/40287210534) 成功核对产物来源、草稿目标、版本号、安装器载荷及四个远端附件的大小和 SHA-256 后发布为 Latest。正式包由 GitHub 构建产物生成，因此哈希与本机试打包文件不同。公开校验文件已下载并与 API 摘要核对。
+
+- 安装版：35,529,888 字节；`5636082c0cbede55858031e9c4f3161142eb021e725b79a6be19de8449419f92`
+- 便携版：17,248,360 字节；`3dc3cfa13b9215cd693b11129b99509b2f5ce8738aaa436ccf62ca10119ea04e`
+- [正式发布 v0.3.7](https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.7)，中英双语说明仅包含更新内容。
