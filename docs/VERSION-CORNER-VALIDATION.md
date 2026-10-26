@@ -12,3 +12,7 @@ Final packaging independently verified the setup footer length/magic/SHA-256, ex
 
 - ZIP SHA-256: `41aa33e1dcef857d3d35599c0c3e0fe4074465361b94c7768c7265ccad116707`.
 - Setup SHA-256: `2ccfa98b44039f971714085114e2cf9e56999bab8b0964f94502c52b766af9ed`.
+
+Published https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.6. The official latest-release metadata confirmed v0.3.6, draft=false, with four assets. All four GitHub sizes and SHA-256 digests matched the local verified packages. Tag: `bb08ead2c4cd7e0bca38ac2b88d8398ed1219244`.
+
+The remote README at that exact commit was fetched and matched the reviewed local document, including four linked native screenshots. Release notes contain only the two change entries, in Chinese and English with 🕷️ and 🔧 categories.
