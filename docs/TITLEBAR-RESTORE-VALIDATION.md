@@ -26,3 +26,12 @@ X Clipboard 旧实现通过普通 Button 的点击回调调用 `window.zoom_wind
 - `cargo clippy --locked --all-targets --features ui-capture -- -D warnings`：通过。
 
 自动验收结果与还原窗口帧位于 `docs/native-screenshots/titlebar-v038/`。该帧不用于声称捕获了系统分屏弹层。
+
+## 发布核对
+
+- [Windows 原生验证任务](https://github.com/x-iCNNN/x-clipboard/actions/runs/40368416707) 的 Windows 测试、正式构建和产物上传均成功。本次仅发布 Windows x64，其他平台任务不作为本次验收依据。
+- [发布任务](https://github.com/x-iCNNN/x-clipboard/actions/runs/40370082027) 成功验证产物来源、安装器内嵌 ZIP、四个远端附件的大小及 SHA-256，随后发布为 Latest。
+- [v0.3.8](https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.8) 的标签和草稿目标均为 `420be8ee2c4b2941da53e1306ab17c57d663eae5`，中英双语说明仅列本次修复。
+- 安装版：35,530,577 字节；`19d2a69be0eb3e28fdaea61bcd6e2a391efcd07a3f6cfe438f6673eedc4d5ba3`。
+- 便携版：17,249,049 字节；`f3219fd29f5cf57be4e36d9b2ed442087f58aacd958da85c977527e08c1c9463`。
+- 已下载公开 SHA-256 校验文件，核对其值与 GitHub API 资源摘要一致。
