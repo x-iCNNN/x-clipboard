@@ -559,13 +559,12 @@ mod tests {
         let store = HistoryStore::open_with_key(dir.path(), &key)?;
         let mut settings = store.settings()?;
         settings.show_tray_icon = false;
+        settings.middle_click_activation = true;
         store.save_settings(&settings)?;
         drop(store);
-        assert!(
-            !HistoryStore::open_with_key(dir.path(), &key)?
-                .settings()?
-                .show_tray_icon
-        );
+        let restored = HistoryStore::open_with_key(dir.path(), &key)?.settings()?;
+        assert!(!restored.show_tray_icon);
+        assert!(restored.middle_click_activation);
         Ok(())
     }
     #[test]

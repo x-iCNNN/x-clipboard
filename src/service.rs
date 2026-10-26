@@ -447,6 +447,10 @@ impl Service {
             if let Err(e) = self
                 .refresh(db)
                 .and_then(|_| self.backend.shortcut(&self.snapshot().settings.shortcut))
+                .and_then(|_| {
+                    self.backend
+                        .middle_click(self.snapshot().settings.middle_click_activation)
+                })
             {
                 self.error(e.to_string());
             }
@@ -648,11 +652,23 @@ impl Service {
                         if old.shortcut != settings.shortcut {
                             self.backend.shortcut(&settings.shortcut)?;
                         }
+                        if old.middle_click_activation != settings.middle_click_activation
+                            && let Err(error) =
+                                self.backend.middle_click(settings.middle_click_activation)
+                        {
+                            if old.shortcut != settings.shortcut {
+                                let _ = self.backend.shortcut(&old.shortcut);
+                            }
+                            return Err(error);
+                        }
                         if old.start_at_login != settings.start_at_login
                             && let Err(error) = platform::set_startup(settings.start_at_login)
                         {
                             if old.shortcut != settings.shortcut {
                                 let _ = self.backend.shortcut(&old.shortcut);
+                            }
+                            if old.middle_click_activation != settings.middle_click_activation {
+                                let _ = self.backend.middle_click(old.middle_click_activation);
                             }
                             return Err(error);
                         }
@@ -662,6 +678,9 @@ impl Service {
                             }
                             if old.start_at_login != settings.start_at_login {
                                 let _ = platform::set_startup(old.start_at_login);
+                            }
+                            if old.middle_click_activation != settings.middle_click_activation {
+                                let _ = self.backend.middle_click(old.middle_click_activation);
                             }
                             return Err(e);
                         }

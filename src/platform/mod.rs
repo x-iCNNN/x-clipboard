@@ -28,6 +28,10 @@ pub trait ClipboardBackend: Send + Sync {
     fn read(&self, version: u32, respect_sensitive: bool) -> Result<Option<ClipContent>>;
     fn write(&self, content: &ClipContent, plain: bool) -> Result<()>;
     fn shortcut(&self, shortcut: &str) -> Result<()>;
+    fn middle_click(&self, enabled: bool) -> Result<()> {
+        anyhow::ensure!(!enabled, "此平台暂不支持鼠标中键激活");
+        Ok(())
+    }
     fn paste(&self, target: usize) -> Result<()>;
     fn capabilities(&self) -> &'static str;
     fn shutdown(&self) {}

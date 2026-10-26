@@ -26,6 +26,10 @@ static HOTKEY: AtomicU32 = AtomicU32::new(0x0800 | 0x56);
 static KEY_HELD: AtomicBool = AtomicBool::new(false);
 static DROPPED: AtomicBool = AtomicBool::new(false);
 static OWNER: AtomicUsize = AtomicUsize::new(0);
+const MIDDLE_CLICK_MESSAGE: u32 = WM_APP + 0x586;
+static MOUSE_HOOK: AtomicUsize = AtomicUsize::new(0);
+static MIDDLE_HELD: AtomicBool = AtomicBool::new(false);
+static MIDDLE_TARGET: AtomicUsize = AtomicUsize::new(0);
 const INPUT_ORIGIN: usize = 0x58434c50;
 static QUICK_PANEL: AtomicUsize = AtomicUsize::new(0);
 static QUICK_TARGET: AtomicUsize = AtomicUsize::new(0);
@@ -123,6 +127,12 @@ impl PlatformClipboard {
                             let _ = TranslateMessage(&msg);
                             DispatchMessageW(&msg);
                         }
+                        OWNER.store(0, Ordering::Release);
+                        let mouse = MOUSE_HOOK.swap(0, Ordering::AcqRel);
+                        if mouse != 0 {
+                            let _ = UnhookWindowsHookEx(HHOOK(mouse as *mut _));
+                        }
+                        MIDDLE_HELD.store(false, Ordering::Release);
                         let _ = UnhookWindowsHookEx(hook);
                         let _ = RemoveClipboardFormatListener(hwnd);
                         let _ = DestroyWindow(hwnd);
@@ -155,6 +165,28 @@ fn dispatch(event: PlatformEvent) {
     }
 }
 unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+    if msg == MIDDLE_CLICK_MESSAGE {
+        let enabled = w.0 != 0;
+        let current = MOUSE_HOOK.load(Ordering::Acquire);
+        if enabled && current == 0 {
+            let installed = unsafe { GetModuleHandleW(None) }.and_then(|instance| unsafe {
+                SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook), Some(instance.into()), 0)
+            });
+            match installed {
+                Ok(hook) => {
+                    MOUSE_HOOK.store(hook.0 as usize, Ordering::Release);
+                }
+                Err(_) => return LRESULT(0),
+            }
+        } else if !enabled && current != 0 {
+            if unsafe { UnhookWindowsHookEx(HHOOK(current as *mut _)) }.is_err() {
+                return LRESULT(0);
+            }
+            MOUSE_HOOK.store(0, Ordering::Release);
+            MIDDLE_HELD.store(false, Ordering::Release);
+        }
+        return LRESULT(1);
+    }
     if msg == WM_CLIPBOARDUPDATE {
         dispatch(PlatformEvent::Changed(unsafe {
             GetClipboardSequenceNumber()
@@ -162,6 +194,26 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM
         return LRESULT(0);
     }
     unsafe { DefWindowProcW(hwnd, msg, w, l) }
+}
+unsafe extern "system" fn mouse_hook(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
+    if code >= 0 && MOUSE_HOOK.load(Ordering::Acquire) != 0 {
+        match w.0 as u32 {
+            WM_MBUTTONDOWN => {
+                if !MIDDLE_HELD.swap(true, Ordering::AcqRel) {
+                    MIDDLE_TARGET.store(foreground(), Ordering::Release);
+                }
+                return LRESULT(1);
+            }
+            WM_MBUTTONUP if MIDDLE_HELD.swap(false, Ordering::AcqRel) => {
+                dispatch(PlatformEvent::ShowQuick(
+                    MIDDLE_TARGET.load(Ordering::Acquire),
+                ));
+                return LRESULT(1);
+            }
+            _ => {}
+        }
+    }
+    unsafe { CallNextHookEx(None, code, w, l) }
 }
 unsafe extern "system" fn keyboard_hook(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
     if code >= 0 {
@@ -467,6 +519,20 @@ impl ClipboardBackend for PlatformClipboard {
         drop(_lock);
         self.own_version
             .store(unsafe { GetClipboardSequenceNumber() }, Ordering::Release);
+        Ok(())
+    }
+    fn middle_click(&self, enabled: bool) -> Result<()> {
+        let owner = OWNER.load(Ordering::Acquire);
+        ensure!(owner != 0, "鼠标中键监听服务未运行");
+        let result = unsafe {
+            SendMessageW(
+                HWND(owner as *mut _),
+                MIDDLE_CLICK_MESSAGE,
+                Some(WPARAM(enabled as usize)),
+                Some(LPARAM(0)),
+            )
+        };
+        ensure!(result.0 == 1, "鼠标中键监听设置失败");
         Ok(())
     }
     fn shortcut(&self, shortcut: &str) -> Result<()> {

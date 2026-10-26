@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "renderer": "GPUI native render_to_image",
+  "fixture": "synthetic encrypted database",
+  "visual_acceptance": "NOT_PROVEN_BY_CAPTURE_EXISTENCE",
+  "count": 2,
+  "captures": [
+    {
+      "name": "settings-shortcuts",
+      "theme": "light",
+      "file": "settings-shortcuts-light.png",
+      "expected_width": 960.0,
+      "expected_height": 760.0,
+      "logical_width": 960.0,
+      "logical_height": 760.0,
+      "pixel_width": 960,
+      "pixel_height": 760,
+      "scale_factor": 1.0,
+      "preview_error": null,
+      "expected_preview_error": false,
+      "visual_review": "pending-human-or-agent-image-inspection"
+    },
+    {
+      "name": "settings-shortcuts",
+      "theme": "dark",
+      "file": "settings-shortcuts-dark.png",
+      "expected_width": 960.0,
+      "expected_height": 760.0,
+      "logical_width": 960.0,
+      "logical_height": 760.0,
+      "pixel_width": 960,
+      "pixel_height": 760,
+      "scale_factor": 1.0,
+      "preview_error": null,
+      "expected_preview_error": false,
+      "visual_review": "pending-human-or-agent-image-inspection"
+    }
+  ]
+}

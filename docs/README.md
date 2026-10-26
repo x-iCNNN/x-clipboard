@@ -16,6 +16,8 @@ This page is the map for project documentation. Product decisions and validation
 
 - [Encrypted WebDAV sync / WebDAV 加密同步](WEBDAV.md)
 - [Installation and updates / 安装与更新](UPDATES.md)
+- [v0.3.2 release notes / v0.3.2 版本说明](RELEASE-v0.3.2.md)
+- [Middle-click activation validation / 鼠标中键激活验证](MIDDLE-CLICK-VALIDATION.md)
 - [v0.3.1 release notes / v0.3.1 版本说明](RELEASE-v0.3.1.md)
 - [Tray visibility validation / 托盘显示验证](TRAY-VISIBILITY-VALIDATION.md)
 

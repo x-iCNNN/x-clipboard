@@ -141,6 +141,7 @@ pub struct Settings {
     pub start_at_login: bool,
     pub close_to_tray: bool,
     pub show_tray_icon: bool,
+    pub middle_click_activation: bool,
     pub compact: bool,
     pub position: String,
     pub excluded_apps: Vec<String>,
@@ -169,6 +170,7 @@ impl Default for Settings {
             start_at_login: false,
             close_to_tray: true,
             show_tray_icon: true,
+            middle_click_activation: false,
             compact: false,
             position: "cursor".into(),
             excluded_apps: vec![],
@@ -231,6 +233,15 @@ mod tests {
         let restored: Settings =
             serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
         assert!(!restored.show_tray_icon);
+    }
+    #[test]
+    fn middle_click_is_opt_in_and_roundtrips_enabled() {
+        let mut settings: Settings = serde_json::from_str("{}").unwrap();
+        assert!(!settings.middle_click_activation);
+        settings.middle_click_activation = true;
+        let restored: Settings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert!(restored.middle_click_activation);
     }
     #[test]
     fn dedup_is_format_sensitive_and_preserves_whitespace() {

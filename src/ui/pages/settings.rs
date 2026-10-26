@@ -311,6 +311,18 @@ impl Desktop {
                         false,
                         cx,
                     ),
+                    if cfg!(windows) {
+                        self.switch_row(
+                            "鼠标中键打开快捷面板",
+                            "开启后点击滚轮打开面板，并替代其他应用的中键点击动作。",
+                            s.middle_click_activation,
+                            |s, on| s.middle_click_activation = on,
+                            false,
+                            cx,
+                        )
+                    } else {
+                        div().into_any_element()
+                    },
                     setting_row(
                         "快捷键状态",
                         "当前已保存并应用的组合键。",

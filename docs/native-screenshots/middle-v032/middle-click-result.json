@@ -1,0 +1,8 @@
+{
+  "initial_saved_setting": false,
+  "repeated_enable_disable": true,
+  "native_sendinput": true,
+  "middle_click_consumed_when_enabled": true,
+  "middle_click_restored_when_disabled": true,
+  "original_paste_target_preserved": true
+}

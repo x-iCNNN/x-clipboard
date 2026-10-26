@@ -67,7 +67,9 @@ pub(super) fn start(cx: &mut App) {
         }
     };
     // Prevent a review session from capturing clipboard changes or intercepting hotkeys.
-    if std::env::var("X_CLIPBOARD_UI_REVIEW_SEARCH").as_deref() != Ok("1") {
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_SEARCH").as_deref() != Ok("1")
+        && std::env::var("X_CLIPBOARD_UI_REVIEW_MIDDLE_CLICK").as_deref() != Ok("1")
+    {
         service.backend.shutdown();
     }
     let output = std::env::var_os("X_CLIPBOARD_UI_REVIEW_OUTPUT")
@@ -424,6 +426,9 @@ async fn run(
         service.snapshot().history_loaded,
         "history hydration timed out"
     );
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_MIDDLE_CLICK").as_deref() == Ok("1") {
+        check_middle_click(cx, service, output).await?;
+    }
     if std::env::var("X_CLIPBOARD_UI_REVIEW_TRAY").as_deref() == Ok("1") {
         // The normal startup loop has not polled yet: no icon may flash before settings load.
         ensure!(
@@ -778,6 +783,190 @@ async fn run(
         "UI-REVIEW COMPLETE: {} native captures; visual inspection remains required",
         captures.len()
     );
+    Ok(())
+}
+
+async fn check_middle_click(
+    cx: &mut AsyncApp,
+    service: &Service,
+    output: &std::path::Path,
+) -> Result<()> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use windows::{
+        Win32::{
+            Foundation::*,
+            UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
+        },
+        core::w,
+    };
+    static CLICKS: AtomicUsize = AtomicUsize::new(0);
+    unsafe extern "system" fn target_proc(
+        hwnd: HWND,
+        message: u32,
+        w: WPARAM,
+        l: LPARAM,
+    ) -> LRESULT {
+        if matches!(message, WM_MBUTTONDOWN | WM_MBUTTONUP) {
+            CLICKS.fetch_add(1, Ordering::AcqRel);
+        }
+        unsafe { DefWindowProcW(hwnd, message, w, l) }
+    }
+    struct Target(HWND, POINT);
+    impl Drop for Target {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = DestroyWindow(self.0);
+                let _ = SetCursorPos(self.1.x, self.1.y);
+            }
+        }
+    }
+    let target = unsafe {
+        let mut cursor = POINT::default();
+        GetCursorPos(&mut cursor)?;
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(target_proc),
+            lpszClassName: w!("XClipboardMiddleProbe"),
+            ..Default::default()
+        };
+        ensure!(
+            RegisterClassW(&class) != 0,
+            "cannot register middle-click target"
+        );
+        let hwnd = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            w!("XClipboardMiddleProbe"),
+            w!("Middle-click probe"),
+            WS_OVERLAPPEDWINDOW,
+            40,
+            40,
+            480,
+            220,
+            None,
+            None,
+            None,
+            None,
+        )?;
+        let _ = ShowWindow(hwnd, SW_SHOW);
+        let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
+        Target(hwnd, cursor)
+    };
+    cx.update(|cx| open_window(Kind::Settings, cx));
+    lifecycle_tick(cx, 200).await;
+    let view = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Settings].1.clone());
+    let initial = service.snapshot().settings.middle_click_activation;
+    for enabled in [initial, true, false, true, false, true] {
+        cx.update(|cx| {
+            if let Some((handle, _)) = cx.global::<Owner>().windows.get(&Kind::Quick).cloned() {
+                let _ = handle.update(cx, |_, window, cx| hide(window, cx));
+            }
+            view.update(cx, |desktop, _| {
+                desktop.update_settings(|settings| settings.middle_click_activation = enabled)
+            });
+        });
+        for _ in 0..50 {
+            lifecycle_tick(cx, 60).await;
+            if service.snapshot().settings.middle_click_activation == enabled {
+                break;
+            }
+        }
+        ensure!(
+            service.snapshot().settings.middle_click_activation == enabled,
+            "middle-click setting failed to save"
+        );
+        CLICKS.store(0, Ordering::Release);
+        unsafe {
+            SetWindowPos(
+                target.0,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            )?;
+            let _ = SetForegroundWindow(target.0);
+            let mut rect = RECT::default();
+            GetWindowRect(target.0, &mut rect)?;
+            let point = POINT {
+                x: rect.left + 80,
+                y: rect.top + 100,
+            };
+            ensure!(
+                GetAncestor(WindowFromPoint(point), GA_ROOT) == target.0,
+                "owned target obscured; refuse input"
+            );
+            SetCursorPos(point.x, point.y)?;
+            // Activate only this owned window if Windows denied programmatic activation.
+            if GetForegroundWindow() != target.0 {
+                let input = [MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP].map(|flags| INPUT {
+                    r#type: INPUT_MOUSE,
+                    Anonymous: INPUT_0 {
+                        mi: MOUSEINPUT {
+                            dwFlags: flags,
+                            ..Default::default()
+                        },
+                    },
+                });
+                ensure!(
+                    SendInput(&input, std::mem::size_of::<INPUT>() as i32) == 2,
+                    "owned activation click denied"
+                );
+            }
+        }
+        lifecycle_tick(cx, 120).await;
+        unsafe {
+            ensure!(
+                GetForegroundWindow() == target.0,
+                "owned target not foreground; refuse middle click"
+            );
+            let input = [MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP].map(|flags| INPUT {
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 {
+                    mi: MOUSEINPUT {
+                        dwFlags: flags,
+                        ..Default::default()
+                    },
+                },
+            });
+            ensure!(
+                SendInput(&input, std::mem::size_of::<INPUT>() as i32) == 2,
+                "middle input denied"
+            );
+        }
+        lifecycle_tick(cx, 300).await;
+        let (shown, actual_target) = cx.update(|cx| {
+            let owner = cx.global::<Owner>();
+            (
+                owner.windows.contains_key(&Kind::Quick)
+                    && !owner.hidden_since.contains_key(&Kind::Quick),
+                owner.target,
+            )
+        });
+        ensure!(
+            shown == enabled,
+            "middle-click panel visibility did not match setting"
+        );
+        ensure!(
+            CLICKS.load(Ordering::Acquire) == if enabled { 0 } else { 2 },
+            "middle click not consumed/restored correctly"
+        );
+        if enabled {
+            ensure!(
+                actual_target == target.0.0 as usize,
+                "middle click lost original paste target"
+            );
+        }
+    }
+    // No hooks remain active while rendering static screenshots; saved setting stays enabled.
+    service.backend.shutdown();
+    std::fs::write(
+        output.join("middle-click-result.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "initial_saved_setting":initial, "repeated_enable_disable":true,
+            "native_sendinput":true,"middle_click_consumed_when_enabled":true,
+            "middle_click_restored_when_disabled":true,"original_paste_target_preserved":true
+        }))?,
+    )?;
     Ok(())
 }
 

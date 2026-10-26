@@ -4783,5 +4783,27 @@
     "Page du projet",
     "Projektseite",
     "Página do projeto"
+  ],
+  "鼠标中键打开快捷面板": [
+    "鼠标中键打开快捷面板",
+    "滑鼠中鍵開啟快捷面板",
+    "Open quick panel with middle mouse button",
+    "マウスの中ボタンでパネルを開く",
+    "마우스 가운데 버튼으로 패널 열기",
+    "Abrir panel con el botón central",
+    "Ouvrir le panneau avec le bouton central",
+    "Panel mit mittlerer Maustaste öffnen",
+    "Abrir painel com o botão do meio"
+  ],
+  "开启后点击滚轮打开面板，并替代其他应用的中键点击动作。": [
+    "开启后点击滚轮打开面板，并替代其他应用的中键点击动作。",
+    "開啟後按下滾輪開啟面板，並取代其他應用程式的中鍵點擊動作。",
+    "When enabled, click the wheel to open the panel. Replaces middle-click actions in other apps.",
+    "有効にするとホイールのクリックでパネルを開き、他のアプリの中クリック動作を置き換えます。",
+    "활성화하면 휠 클릭으로 패널을 엽니다. 다른 앱의 가운데 클릭 동작을 대체합니다.",
+    "Al activarlo, pulsa la rueda para abrir el panel. Sustituye el clic central de otras apps.",
+    "Cliquez sur la molette pour ouvrir le panneau. Remplace le clic central des autres applications.",
+    "Bei Aktivierung öffnet ein Klick auf das Mausrad das Panel und ersetzt Mittelklicks in anderen Apps.",
+    "Quando ativo, clique na roda para abrir o painel. Substitui o clique do meio em outros apps."
   ]
 }
