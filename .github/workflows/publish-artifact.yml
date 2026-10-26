@@ -1,0 +1,111 @@
+name: Publish validated Windows artifact
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Native validation run containing a successful Windows job
+        required: true
+        type: string
+      tag:
+        description: Existing draft release tag
+        required: true
+        type: string
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: publish-artifact-${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      VALIDATION_RUN: ${{ inputs.run_id }}
+    steps:
+      - name: Verify artifact provenance and draft target
+        id: source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$' -or $env:VALIDATION_RUN -notmatch '^\d+$') { throw 'Invalid run or tag' }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:VALIDATION_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read validation run' }
+          if ($run.path -ne '.github/workflows/native.yml' -or $run.event -ne 'push' -or $run.head_branch -ne 'main' -or $run.status -ne 'completed') { throw 'Only completed main-branch Native validation runs are accepted' }
+          $jobs = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:VALIDATION_RUN/jobs?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read validation jobs' }
+          $windows = @($jobs.jobs | Where-Object name -EQ 'native (windows-latest, x86_64-pc-windows-msvc, win-x64)')
+          if ($windows.Count -ne 1 -or $windows[0].conclusion -ne 'success') { throw 'Windows validation must pass' }
+          $release = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json 'isDraft,targetCommitish' | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or -not $release.isDraft -or $release.targetCommitish -ne $run.head_sha) { throw 'Draft target must match the validated revision' }
+          "revision=$($run.head_sha)" >> $env:GITHUB_OUTPUT
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.revision }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: x-clipboard-x86_64-pc-windows-msvc
+          path: target/release
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Package the validated binaries
+        shell: pwsh
+        run: |
+          $version = ((Get-Content Cargo.toml | Select-String '^version = "([^"]+)"$').Matches.Groups[1].Value)
+          if ($env:RELEASE_TAG -ne "v$version") { throw 'Version mismatch' }
+          foreach ($file in @('x-clipboard.exe', 'x-clipboard-setup.exe', 'pdfium.dll', 'licenses')) {
+            if (-not (Test-Path "target/release/$file")) { throw "Missing validated artifact: $file" }
+          }
+          ./scripts/package-windows.ps1 -SkipBuild -NoUpx
+          if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
+      - name: Verify installer payload
+        shell: pwsh
+        run: |
+          $probe = @'
+          import hashlib,io,os,pathlib,zipfile
+          root=pathlib.Path.cwd()
+          prefix='x-clipboard-'+os.environ['RELEASE_TAG']+'-windows-x64'
+          archive=(root/'dist'/(prefix+'.zip')).read_bytes()
+          setup=(root/'dist'/(prefix+'-setup.exe')).read_bytes()
+          magic=b'XCLIPBOARDSETUP!'
+          assert setup.endswith(magic)
+          length=int.from_bytes(setup[-len(magic)-8:-len(magic)],'little')
+          tail=len(magic)+8+32
+          payload=setup[-tail-length:-tail]
+          assert payload==archive
+          assert hashlib.sha256(payload).digest()==setup[-tail:-len(magic)-8]
+          with zipfile.ZipFile(io.BytesIO(payload)) as z:
+              assert z.testzip() is None
+              assert z.read('x-clipboard.exe')==(root/'target/release/x-clipboard.exe').read_bytes()
+          print('Validated artifact and installer payload match')
+          '@
+          python -c $probe
+          if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
+      - name: Upload, verify and publish
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json 'isDraft,name,targetCommitish,body' | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or -not $release.isDraft -or $release.targetCommitish -ne '${{ steps.source.outputs.revision }}') { throw 'Draft changed before upload' }
+          $notes = "docs/RELEASE-$env:RELEASE_TAG.md"
+          if ($release.body.Replace("`r`n", "`n").TrimEnd() -cne (Get-Content $notes -Raw).Replace("`r`n", "`n").TrimEnd()) { throw 'Release notes do not match the validated revision' }
+          $archive = "dist/x-clipboard-$env:RELEASE_TAG-windows-x64.zip"
+          $setup = "dist/x-clipboard-$env:RELEASE_TAG-windows-x64-setup.exe"
+          $files = @($archive, "$archive.sha256", $setup, "$setup.sha256")
+          foreach ($file in $files) {
+            gh release upload $env:RELEASE_TAG $file --repo $env:GITHUB_REPOSITORY --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Upload failed: $file" }
+          }
+          $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify uploaded assets' }
+          $remote = @($releases | Where-Object tag_name -EQ $env:RELEASE_TAG)
+          if ($remote.Count -ne 1 -or -not $remote[0].draft -or $remote[0].assets.Count -ne 4) { throw 'Expected one draft with four assets' }
+          foreach ($file in $files) {
+            $asset = @($remote[0].assets | Where-Object name -EQ ([IO.Path]::GetFileName($file)))
+            $digest = 'sha256:' + (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($asset.Count -ne 1 -or $asset[0].state -ne 'uploaded' -or $asset[0].size -ne (Get-Item $file).Length -or $asset[0].digest -cne $digest) { throw "Remote verification failed: $file" }
+            Write-Output "$([IO.Path]::GetFileName($file)) $digest"
+          }
+          gh release edit $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --draft=false --latest --title $release.name --notes-file $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Publication failed' }
