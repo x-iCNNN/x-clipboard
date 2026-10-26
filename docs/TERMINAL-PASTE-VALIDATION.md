@@ -34,3 +34,12 @@ The fix adds an explicit, locally saved Windows paste chord choice. It does not 
 - Packaged installer passed payload checksum, actual custom-path installation, overwrite upgrade, binary integrity, user-data preservation, and uninstall. Shortcut creation was disabled for the isolated probe to preserve the existing user shortcut. Test registration was removed.
 - ZIP SHA-256: `f2f46065de560b8c68a59a3764a4ca535ddabf13a03467eb2f21bd77c1e415af`.
 - Setup SHA-256: `92e492029c121a4033bac6b5d2cef5804c05d3618caed172862e4f33fab53da9`.
+
+## Publication / 公开发布
+
+- Published https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.3 on 2026-10-26, with bilingual notes, portable/installer assets, and checksum files.
+- Authenticated release metadata reported v0.3.3 as latest and draft=false; all four GitHub asset digests and sizes matched local files. Remote tag is `e3e3ebea4ea2360205f9f737596af12b75cb4ddd`.
+- The first parallel attachment upload hit HTTP 408 inactivity timeout. Sequential retry with the Go HTTP/2 client disabled succeeded; no release was published until all asset digests matched.
+- Anonymous `updater::tests::github_live_check` was attempted twice, including a per-process NO_PROXY request, and stopped at HTTP 403 GitHub API rate limit. This is not counted as an updater end-to-end pass for v0.3.3.
+- Direct unauthenticated public browser download of the portable ZIP succeeded, and its SHA-256 matched the verified local and GitHub asset.
+- DBx-specific acceptance remains pending the user's test after selecting Settings > Shortcuts > Paste shortcut > Shift+Insert.
