@@ -1,0 +1,6 @@
+{
+  "native_max_button": true,
+  "maximize_restore_twice": true,
+  "restored_bounds_match": true,
+  "gpui_state_matches": true
+}

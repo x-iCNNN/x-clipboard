@@ -1211,20 +1211,46 @@ impl Desktop {
                         .on_click(|_, w, _| w.minimize_window()),
                 );
             if self.kind == Kind::Main {
-                bar = bar.child(
+                let icon = if window.is_maximized() {
+                    IconName::WindowRestore
+                } else {
+                    IconName::WindowMaximize
+                };
+                bar = bar.child(if cfg!(windows) {
+                    div()
+                        .id("maximize")
+                        .w(px(32.))
+                        .h(px(30.))
+                        .rounded_md()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .role(accesskit::Role::Button)
+                        .aria_label(tr("最大化 / 还原"))
+                        .text_color(cx.theme().secondary_foreground)
+                        .hover(|style| {
+                            style
+                                .bg(if cx.theme().is_dark() {
+                                    cx.theme().accent.opacity(0.5)
+                                } else {
+                                    cx.theme().accent
+                                })
+                                .text_color(cx.theme().accent_foreground)
+                        })
+                        .window_control_area(WindowControlArea::Max)
+                        .child(Icon::new(icon).size(px(16.)))
+                        .into_any_element()
+                } else {
                     Button::new("maximize")
                         .ghost()
                         .w(px(32.))
                         .h(px(30.))
                         .p_0()
                         .accessibility_label(tr("最大化 / 还原"))
-                        .icon(if window.is_maximized() {
-                            IconName::WindowRestore
-                        } else {
-                            IconName::WindowMaximize
-                        })
-                        .on_click(|_, w, _| w.zoom_window()),
-                );
+                        .icon(icon)
+                        .on_click(|_, w, _| w.zoom_window())
+                        .into_any_element()
+                });
             }
             bar = bar.child(
                 Button::new("close")

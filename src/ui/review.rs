@@ -413,6 +413,9 @@ async fn run(
     output: &std::path::Path,
 ) -> Result<()> {
     std::fs::create_dir_all(output)?;
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_TITLEBAR").as_deref() == Ok("1") {
+        return check_titlebar_restore(cx, output).await;
+    }
     if std::env::var("X_CLIPBOARD_UI_REVIEW_FROSTED").as_deref() == Ok("1") {
         return check_frosted(cx, service, output).await;
     }
@@ -1456,6 +1459,119 @@ async fn check_frosted(
             if !unsafe { IsWindowVisible(settings_hwnd) }.as_bool() {
                 break;
             }
+        }
+    }
+    Ok(())
+}
+
+async fn check_titlebar_restore(cx: &mut AsyncApp, output: &std::path::Path) -> Result<()> {
+    use windows::Win32::{
+        Foundation::*, Graphics::Gdi::ClientToScreen, UI::WindowsAndMessaging::*,
+    };
+    cx.update(|cx| open_window(Kind::Main, cx));
+    lifecycle_tick(cx, 250).await;
+    let handle = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Main].0);
+    let hwnd = cx.update(|cx| handle.update(cx, |_, window, _| HWND(native(window) as *mut _)))?;
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
+    }
+    lifecycle_tick(cx, 200).await;
+    let mut initial = RECT::default();
+    unsafe {
+        GetWindowRect(hwnd, &mut initial)?;
+    }
+    let mut hits = Vec::new();
+    for (step, maximized) in [true, false, true, false].into_iter().enumerate() {
+        let (position, scale) = cx.update(|cx| {
+            handle.update(cx, |_, window, cx| {
+                window.draw(cx).clear(cx);
+                let position = point(window.viewport_size().width - px(64.), px(23.));
+                window.dispatch_event(
+                    PlatformInput::MouseMove(MouseMoveEvent {
+                        position,
+                        pressed_button: None,
+                        modifiers: Modifiers::default(),
+                    }),
+                    cx,
+                );
+                (position, window.scale_factor())
+            })
+        })?;
+        let mut screen = POINT {
+            x: (f32::from(position.x) * scale) as i32,
+            y: (f32::from(position.y) * scale) as i32,
+        };
+        let client =
+            LPARAM((((screen.y as u32 & 65535) << 16) | (screen.x as u32 & 65535)) as isize);
+        unsafe {
+            ClientToScreen(hwnd, &mut screen).ok()?;
+        }
+        let screen =
+            LPARAM((((screen.y as u32 & 65535) << 16) | (screen.x as u32 & 65535)) as isize);
+        let hit = unsafe { SendMessageW(hwnd, WM_NCHITTEST, None, Some(screen)).0 };
+        hits.push(hit);
+        let (down, up, coordinates, wparam) = if hit == HTMAXBUTTON as isize {
+            (
+                WM_NCLBUTTONDOWN,
+                WM_NCLBUTTONUP,
+                screen,
+                WPARAM(HTMAXBUTTON as usize),
+            )
+        } else {
+            (WM_LBUTTONDOWN, WM_LBUTTONUP, client, WPARAM(0))
+        };
+        unsafe {
+            SendMessageW(hwnd, down, Some(wparam), Some(coordinates));
+            SendMessageW(hwnd, up, Some(wparam), Some(coordinates));
+        }
+        lifecycle_tick(cx, 350).await;
+        ensure!(
+            unsafe { IsZoomed(hwnd) }.as_bool() == maximized,
+            "titlebar step {step}: expected maximized={maximized}; hit={hit}"
+        );
+        let state = cx.update(|cx| handle.update(cx, |_, window, _| window.is_maximized()))?;
+        ensure!(
+            state == maximized,
+            "GPUI maximize state did not follow native state"
+        );
+        if !maximized {
+            let mut restored = RECT::default();
+            unsafe {
+                GetWindowRect(hwnd, &mut restored)?;
+            }
+            ensure!(restored == initial, "restored window bounds changed");
+        }
+    }
+    ensure!(
+        hits.iter().all(|hit| *hit == HTMAXBUTTON as isize),
+        "maximize button must use native hit testing"
+    );
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            window.draw(cx).clear(cx);
+            window
+                .render_to_image()?
+                .save(output.join("restored.png"))?;
+            anyhow::Ok(())
+        })
+    })??;
+    std::fs::write(
+        output.join("titlebar-result.json"),
+        serde_json::to_vec_pretty(
+            &serde_json::json!({"native_max_button":true,"maximize_restore_twice":true,"restored_bounds_match":true,"gpui_state_matches":true}),
+        )?,
+    )?;
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_TITLEBAR_HOLD").as_deref() == Ok("1") {
+        cx.update(|cx| {
+            handle.update(cx, |_, window, _| {
+                window.set_window_title("X Clipboard · 标题栏验收")
+            })
+        })?;
+        for _ in 0..10000 {
+            if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
+                break;
+            }
+            lifecycle_tick(cx, 60).await;
         }
     }
     Ok(())
