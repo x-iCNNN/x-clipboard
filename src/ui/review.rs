@@ -424,6 +424,46 @@ async fn run(
         service.snapshot().history_loaded,
         "history hydration timed out"
     );
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_TRAY").as_deref() == Ok("1") {
+        // The normal startup loop has not polled yet: no icon may flash before settings load.
+        ensure!(
+            cx.update(|cx| cx.global::<Owner>().tray.is_none()),
+            "Tray created before settings loaded"
+        );
+        cx.update(|cx| open_window(Kind::Settings, cx));
+        lifecycle_tick(cx, 200).await;
+        let view = cx.update(|cx| cx.global::<Owner>().windows[&Kind::Settings].1.clone());
+        for visible in [true, false, true, false] {
+            cx.update(|cx| {
+                view.update(cx, |desktop, _| {
+                    desktop.update_settings(|settings| settings.show_tray_icon = visible);
+                })
+            });
+            for _ in 0..50 {
+                lifecycle_tick(cx, 60).await;
+                if service.snapshot().settings.show_tray_icon == visible {
+                    break;
+                }
+            }
+            lifecycle_tick(cx, 120).await;
+            ensure!(
+                service.snapshot().settings.show_tray_icon == visible,
+                "Setting did not save"
+            );
+            ensure!(
+                cx.update(|cx| {
+                    let owner = cx.global::<Owner>();
+                    owner.tray_visible == visible
+                        && owner.tray.as_ref().unwrap().rect().is_some() == visible
+                }),
+                "Windows tray visibility did not match setting: {visible}"
+            );
+        }
+        std::fs::write(
+            output.join("tray-result.json"),
+            r#"{"startup_without_icon":true,"show_hide_show_hide":true,"windows_shell_rect_verified":true}"#,
+        )?;
+    }
     if let Ok(endpoint) = std::env::var("X_CLIPBOARD_UI_REVIEW_WEBDAV") {
         return check_webdav(cx, service, output, &endpoint).await;
     }
@@ -608,6 +648,11 @@ async fn run(
     }
     if let Ok(filter) = std::env::var("X_CLIPBOARD_UI_REVIEW_SCENES") {
         scenes.retain(|scene| filter.split(',').any(|name| name.trim() == scene.name));
+    }
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_TRAY").as_deref() == Ok("1") {
+        for scene in &mut scenes {
+            scene.height = 1020.;
+        }
     }
     let first_scene = scenes.first().context("没有可渲染的验收场景")?;
     let (handle, view) = cx.update(|cx| {

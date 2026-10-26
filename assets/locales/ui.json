@@ -4739,5 +4739,49 @@
     "emplacement de la souris",
     "Mausposition",
     "localização do mouse"
+  ],
+  "显示托盘图标": [
+    "显示托盘图标",
+    "顯示托盤圖示",
+    "Show tray icon",
+    "トレイアイコンを表示",
+    "트레이 아이콘 표시",
+    "Mostrar icono de bandeja",
+    "Afficher l’icône de notification",
+    "Taskleistensymbol anzeigen",
+    "Mostrar ícone na bandeja"
+  ],
+  "隐藏后仍在后台运行，可通过快捷键打开面板和设置。": [
+    "隐藏后仍在后台运行，可通过快捷键打开面板和设置。",
+    "隱藏後仍在背景執行，可透過快捷鍵開啟面板和設定。",
+    "Keeps running when hidden. Use the shortcut to open the panel and settings.",
+    "非表示でも動作を続けます。ショートカットでパネルと設定を開けます。",
+    "숨겨도 실행됩니다. 단축키로 패널과 설정을 열 수 있습니다.",
+    "Sigue funcionando. Usa el atajo para abrir el panel y los ajustes.",
+    "Continue en arrière-plan. Le raccourci ouvre le panneau et les paramètres.",
+    "Läuft weiter. Das Tastenkürzel öffnet Panel und Einstellungen.",
+    "Continua em segundo plano. O atalho abre o painel e as configurações."
+  ],
+  "关闭窗口后在后台运行": [
+    "关闭窗口后在后台运行",
+    "關閉視窗後在背景執行",
+    "Keep running after closing the window",
+    "ウィンドウを閉じても動作を続ける",
+    "창을 닫아도 실행",
+    "Seguir ejecutando al cerrar",
+    "Continuer après fermeture",
+    "Nach dem Schließen weiterlaufen",
+    "Continuar após fechar"
+  ],
+  "项目主页": [
+    "项目主页",
+    "專案首頁",
+    "Project homepage",
+    "プロジェクトのホームページ",
+    "프로젝트 홈페이지",
+    "Página del proyecto",
+    "Page du projet",
+    "Projektseite",
+    "Página do projeto"
   ]
 }

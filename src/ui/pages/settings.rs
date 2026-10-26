@@ -68,8 +68,16 @@ impl Desktop {
                 false,
                 cx,
             ),
+            self.switch_row(
+                "显示托盘图标",
+                "隐藏后仍在后台运行，可通过快捷键打开面板和设置。",
+                s.show_tray_icon,
+                |s, on| s.show_tray_icon = on,
+                false,
+                cx,
+            ),
             setting_row(
-                "关闭窗口后保留在托盘",
+                "关闭窗口后在后台运行",
                 "后台继续记录，可通过快捷键随时唤起。",
                 badge("始终开启", true, cx),
                 !cfg!(windows),
@@ -851,6 +859,21 @@ impl Desktop {
             .child(section(
                 "开源与帮助",
                 vec![
+                    setting_row(
+                        "项目主页",
+                        x_clipboard::updater::PROJECT_URL,
+                        Button::new("github-project")
+                            .small()
+                            .label("GitHub")
+                            .on_click(|_, _, cx| {
+                                if let Err(error) = open::that(x_clipboard::updater::PROJECT_URL) {
+                                    cx.global::<Owner>().service.error(error.to_string());
+                                }
+                            })
+                            .into_any_element(),
+                        false,
+                        cx,
+                    ),
                     setting_row(
                         "开源组件许可",
                         "查看框架、预览引擎与其他依赖。",

@@ -50,7 +50,8 @@ struct Owner {
     windows: HashMap<Kind, (AnyWindowHandle, Entity<Desktop>)>,
     hidden_since: HashMap<Kind, Instant>,
     ui_initialized: bool,
-    _tray: tray_icon::TrayIcon,
+    tray: Option<tray_icon::TrayIcon>,
+    tray_visible: bool,
     #[cfg(not(windows))]
     native_tray_state: Option<(String, bool)>,
     target: usize,
@@ -66,13 +67,6 @@ pub fn run(service: Service) -> anyhow::Result<()> {
         .with_quit_mode(QuitMode::Explicit)
         .with_assets(gpui_kit::assets::AllAssets)
         .run(move |cx| {
-            let tray = match tray(cx) {
-                Ok(tray) => tray,
-                Err(e) => {
-                    service.error(format!("托盘启动失败：{e}"));
-                    return;
-                }
-            };
             cx.set_global(Owner {
                 updater: x_clipboard::updater::Updater::new(service.root.as_ref().clone()),
                 update_revision: 0,
@@ -81,7 +75,8 @@ pub fn run(service: Service) -> anyhow::Result<()> {
                 windows: HashMap::new(),
                 hidden_since: HashMap::new(),
                 ui_initialized: false,
-                _tray: tray,
+                tray: None,
+                tray_visible: false,
                 #[cfg(not(windows))]
                 native_tray_state: None,
                 target: 0,
@@ -211,6 +206,20 @@ fn tray(cx: &App) -> anyhow::Result<tray_icon::TrayIcon> {
     let builder = builder.with_menu_on_left_click(false);
     Ok(builder.build()?)
 }
+fn set_tray_visible(visible: bool, cx: &mut App) -> anyhow::Result<()> {
+    if let Some(tray) = &cx.global::<Owner>().tray {
+        tray.set_visible(visible)?;
+    } else if visible {
+        let tray = tray(cx)?;
+        cx.global_mut::<Owner>().tray = Some(tray);
+        #[cfg(not(windows))]
+        {
+            cx.global_mut::<Owner>().native_tray_state = None;
+        }
+    }
+    cx.global_mut::<Owner>().tray_visible = visible;
+    Ok(())
+}
 fn poll(cx: &mut App) {
     if cx.global::<Owner>().service.snapshot().shutdown_complete {
         if !cx.global::<Owner>().update_armed
@@ -226,6 +235,14 @@ fn poll(cx: &mut App) {
         return;
     }
     let snapshot = cx.global::<Owner>().service.snapshot();
+    if snapshot.ready
+        && snapshot.settings.show_tray_icon != cx.global::<Owner>().tray_visible
+        && let Err(error) = set_tray_visible(snapshot.settings.show_tray_icon, cx)
+    {
+        cx.global::<Owner>()
+            .service
+            .error(format!("托盘显示设置失败：{error}"));
+    }
     if cx.global::<Owner>().update_armed && !snapshot.quitting {
         cx.global::<Owner>().service.send(Command::Shutdown);
     }
@@ -254,7 +271,11 @@ fn poll(cx: &mut App) {
         if cx.global::<Owner>().native_tray_state.as_ref() != Some(&state) {
             i18n::set_locale(&settings.language);
             match native_tray_menu(cx, settings.paused) {
-                Ok(menu) => cx.global::<Owner>()._tray.set_menu(Some(Box::new(menu))),
+                Ok(menu) => {
+                    if let Some(tray) = &cx.global::<Owner>().tray {
+                        tray.set_menu(Some(Box::new(menu)));
+                    }
+                }
                 Err(error) => cx.global::<Owner>().service.error(error.to_string()),
             }
             cx.global_mut::<Owner>().native_tray_state = Some(state);
@@ -302,7 +323,12 @@ fn poll(cx: &mut App) {
     }
     #[cfg(windows)]
     while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
-        if event.id() == cx.global::<Owner>()._tray.id()
+        if cx.global::<Owner>().tray_visible
+            && cx
+                .global::<Owner>()
+                .tray
+                .as_ref()
+                .is_some_and(|tray| event.id() == tray.id())
             && matches!(
                 event,
                 tray_icon::TrayIconEvent::Click {

@@ -140,6 +140,7 @@ pub struct Settings {
     pub paused: bool,
     pub start_at_login: bool,
     pub close_to_tray: bool,
+    pub show_tray_icon: bool,
     pub compact: bool,
     pub position: String,
     pub excluded_apps: Vec<String>,
@@ -167,6 +168,7 @@ impl Default for Settings {
             paused: false,
             start_at_login: false,
             close_to_tray: true,
+            show_tray_icon: true,
             compact: false,
             position: "cursor".into(),
             excluded_apps: vec![],
@@ -220,6 +222,15 @@ mod tests {
         }
         settings.language = "unknown".into();
         assert!(settings.validate().is_err());
+    }
+    #[test]
+    fn tray_visibility_defaults_on_and_roundtrips_off() {
+        let mut settings: Settings = serde_json::from_str("{}").unwrap();
+        assert!(settings.show_tray_icon);
+        settings.show_tray_icon = false;
+        let restored: Settings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert!(!restored.show_tray_icon);
     }
     #[test]
     fn dedup_is_format_sensitive_and_preserves_whitespace() {

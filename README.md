@@ -51,7 +51,7 @@ This project focuses on a few practical principles:
 | **Organize** | Pin, favorite, multi-select, delete, and clear unprotected history. | 置顶、收藏、多选、删除和清理未受保护的历史记录。 |
 | **Paste again** | Re-paste a selected history item; the quick panel attempts to restore the previous target control first. | 重新回贴选中的历史内容；快捷面板会先尝试恢复原目标控件焦点。 |
 | **Preview** | Text/code, Markdown, HTML, images, PDF pages, and direct folder children. | 预览文本/代码、Markdown、HTML、图片、PDF 页面和文件夹直接子项。 |
-| **Personalize** | Light/dark/system themes, compact density, shortcut settings, and offline emoji/symbol search. | 明暗/跟随系统主题、紧凑密度、快捷键设置及离线表情/符号搜索。 |
+| **Personalize** | Light/dark/system themes, compact density, shortcut settings, an optional tray icon, and offline emoji/symbol search. | 明暗/跟随系统主题、紧凑密度、快捷键设置、可隐藏的托盘图标及离线表情/符号搜索。 |
 | **Protect** | Local encrypted storage, OS-protected key material, bounded background work, and no plaintext preview files. | 本地加密存储、操作系统保护密钥、有界后台任务，预览不写明文文件。 |
 | **Sync** | Optional end-to-end encrypted WebDAV sync with automatic/manual merge and deletion propagation. | 可选端到端加密 WebDAV 同步，支持自动/手动合并和主动删除同步。 |
 

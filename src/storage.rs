@@ -553,6 +553,22 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn hidden_tray_setting_survives_encrypted_reopen() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let key = [65; 32];
+        let store = HistoryStore::open_with_key(dir.path(), &key)?;
+        let mut settings = store.settings()?;
+        settings.show_tray_icon = false;
+        store.save_settings(&settings)?;
+        drop(store);
+        assert!(
+            !HistoryStore::open_with_key(dir.path(), &key)?
+                .settings()?
+                .show_tray_icon
+        );
+        Ok(())
+    }
+    #[test]
     fn cleanup_applies_both_limits_without_deleting_protected() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let store = HistoryStore::open_with_key(dir.path(), &[5; 32])?;

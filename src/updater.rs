@@ -12,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub const PROJECT_URL: &str = "https://github.com/x-iCNNN/x-clipboard";
 pub const RELEASES_URL: &str = "https://github.com/x-iCNNN/x-clipboard/releases";
 const API: &str = "https://api.github.com/repos/x-iCNNN/x-clipboard/releases/latest";
 const MAX_DOWNLOAD: u64 = 256 * 1024 * 1024;

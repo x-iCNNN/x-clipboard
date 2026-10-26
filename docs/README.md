@@ -16,6 +16,8 @@ This page is the map for project documentation. Product decisions and validation
 
 - [Encrypted WebDAV sync / WebDAV 加密同步](WEBDAV.md)
 - [Installation and updates / 安装与更新](UPDATES.md)
+- [v0.3.1 release notes / v0.3.1 版本说明](RELEASE-v0.3.1.md)
+- [Tray visibility validation / 托盘显示验证](TRAY-VISIBILITY-VALIDATION.md)
 
 - [Memory and Windows packaging / 内存与 Windows 打包](MEMORY-AND-PACKAGING.md)
 - [Background lifecycle and memory / 后台生命周期与内存](BACKGROUND-MEMORY.md)
