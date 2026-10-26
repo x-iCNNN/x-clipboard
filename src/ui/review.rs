@@ -413,6 +413,22 @@ async fn run(
     output: &std::path::Path,
 ) -> Result<()> {
     std::fs::create_dir_all(output)?;
+    if let Ok(shortcut) = std::env::var("X_CLIPBOARD_UI_REVIEW_PASTE_SHORTCUT") {
+        let mut settings = service.snapshot().settings;
+        settings.paste_shortcut = shortcut.clone();
+        settings.validate()?;
+        service.send(Command::Settings(settings));
+        for _ in 0..50 {
+            lifecycle_tick(cx, 60).await;
+            if service.snapshot().settings.paste_shortcut == shortcut {
+                break;
+            }
+        }
+        ensure!(
+            service.snapshot().settings.paste_shortcut == shortcut,
+            "paste shortcut did not save"
+        );
+    }
     service.set_history_active(true);
     for _ in 0..200 {
         if service.snapshot().history_loaded {

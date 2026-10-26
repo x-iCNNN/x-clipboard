@@ -33,6 +33,10 @@ pub trait ClipboardBackend: Send + Sync {
         Ok(())
     }
     fn paste(&self, target: usize) -> Result<()>;
+    fn paste_using(&self, target: usize, shortcut: &str) -> Result<()> {
+        anyhow::ensure!(shortcut == "Ctrl+V", "此平台暂不支持此回贴按键");
+        self.paste(target)
+    }
     fn capabilities(&self) -> &'static str;
     fn shutdown(&self) {}
 }

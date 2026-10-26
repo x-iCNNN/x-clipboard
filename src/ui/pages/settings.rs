@@ -323,6 +323,22 @@ impl Desktop {
                     } else {
                         div().into_any_element()
                     },
+                    if cfg!(windows) {
+                        setting_row(
+                            "回贴按键",
+                            "SSH 终端不支持 Ctrl+V 时选择 Shift+Insert；应用于所有自动回贴。",
+                            self.setting_choice(
+                                "paste-shortcut",
+                                &s.paste_shortcut,
+                                &[("Ctrl+V", "Ctrl+V"), ("Shift+Insert", "Shift+Insert")],
+                                |s, value| s.paste_shortcut = value.into(),
+                            ),
+                            false,
+                            cx,
+                        )
+                    } else {
+                        div().into_any_element()
+                    },
                     setting_row(
                         "快捷键状态",
                         "当前已保存并应用的组合键。",

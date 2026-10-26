@@ -561,6 +561,14 @@ impl ClipboardBackend for PlatformClipboard {
         Ok(())
     }
     fn paste(&self, target: usize) -> Result<()> {
+        self.paste_using(target, "Ctrl+V")
+    }
+    fn paste_using(&self, target: usize, shortcut: &str) -> Result<()> {
+        let (modifier, key) = match shortcut {
+            "Ctrl+V" => (VK_CONTROL, VK_V),
+            "Shift+Insert" => (VK_SHIFT, VK_INSERT),
+            _ => bail!("未知的回贴按键"),
+        };
         let hwnd = HWND(target as *mut _);
         let saved = PASTE_FOCUS
             .lock()
@@ -614,10 +622,10 @@ impl ClipboardBackend for PlatformClipboard {
             "粘贴期间按键状态已变化；内容已复制，请手动粘贴"
         );
         send_keys(&[
-            (VK_CONTROL, false),
-            (VK_V, false),
-            (VK_V, true),
-            (VK_CONTROL, true),
+            (modifier, false),
+            (key, false),
+            (key, true),
+            (modifier, true),
         ])
     }
     fn capabilities(&self) -> &'static str {
@@ -1114,6 +1122,10 @@ fn send_keys(keys: &[(VIRTUAL_KEY, bool)]) -> Result<()> {
                         KEYEVENTF_KEYUP
                     } else {
                         KEYBD_EVENT_FLAGS(0)
+                    } | if *vk == VK_INSERT {
+                        KEYEVENTF_EXTENDEDKEY
+                    } else {
+                        KEYBD_EVENT_FLAGS(0)
                     },
                     dwExtraInfo: INPUT_ORIGIN,
                     ..Default::default()
@@ -1131,7 +1143,12 @@ fn send_keys(keys: &[(VIRTUAL_KEY, bool)]) -> Result<()> {
                 Anonymous: INPUT_0 {
                     ki: KEYBDINPUT {
                         wVk: key,
-                        dwFlags: KEYEVENTF_KEYUP,
+                        dwFlags: KEYEVENTF_KEYUP
+                            | if key == VK_INSERT {
+                                KEYEVENTF_EXTENDEDKEY
+                            } else {
+                                KEYBD_EVENT_FLAGS(0)
+                            },
                         dwExtraInfo: INPUT_ORIGIN,
                         ..Default::default()
                     },

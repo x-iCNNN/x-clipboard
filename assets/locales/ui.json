@@ -4805,5 +4805,27 @@
     "Cliquez sur la molette pour ouvrir le panneau. Remplace le clic central des autres applications.",
     "Bei Aktivierung öffnet ein Klick auf das Mausrad das Panel und ersetzt Mittelklicks in anderen Apps.",
     "Quando ativo, clique na roda para abrir o painel. Substitui o clique do meio em outros apps."
+  ],
+  "回贴按键": [
+    "回贴按键",
+    "回貼按鍵",
+    "Paste shortcut",
+    "貼り付けキー",
+    "붙여넣기 단축키",
+    "Atajo de pegado",
+    "Raccourci de collage",
+    "Einfüge-Tastenkürzel",
+    "Atalho para colar"
+  ],
+  "SSH 终端不支持 Ctrl+V 时选择 Shift+Insert；应用于所有自动回贴。": [
+    "SSH 终端不支持 Ctrl+V 时选择 Shift+Insert；应用于所有自动回贴。",
+    "SSH 終端不支援 Ctrl+V 時選擇 Shift+Insert；套用於所有自動回貼。",
+    "Choose Shift+Insert for SSH terminals without Ctrl+V support. Applies to all automatic pastes.",
+    "Ctrl+V 非対応の SSH 端末では Shift+Insert を選択。すべての自動貼り付けに適用します。",
+    "Ctrl+V를 지원하지 않는 SSH 터미널은 Shift+Insert를 선택하세요. 모든 자동 붙여넣기에 적용됩니다.",
+    "Elige Shift+Insert para terminales SSH sin Ctrl+V. Se aplica a todo pegado automático.",
+    "Choisissez Shift+Insert pour les terminaux SSH sans Ctrl+V. S’applique à tous les collages automatiques.",
+    "Für SSH-Terminals ohne Ctrl+V wählen Sie Shift+Insert. Gilt für jedes automatische Einfügen.",
+    "Escolha Shift+Insert para terminais SSH sem Ctrl+V. Aplica-se a todas as colagens automáticas."
   ]
 }

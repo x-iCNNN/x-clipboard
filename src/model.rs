@@ -135,6 +135,7 @@ pub struct Settings {
     pub language: String,
     pub theme: String,
     pub shortcut: String,
+    pub paste_shortcut: String,
     pub max_entries: usize,
     pub max_bytes: u64,
     pub paused: bool,
@@ -164,6 +165,7 @@ impl Default for Settings {
                 "Ctrl+Alt+V"
             }
             .into(),
+            paste_shortcut: "Ctrl+V".into(),
             max_entries: 10_000,
             max_bytes: 2 * 1024 * 1024 * 1024,
             paused: false,
@@ -185,6 +187,10 @@ impl Default for Settings {
 impl Settings {
     pub fn validate(&self) -> Result<()> {
         ensure!(crate::i18n::supported(&self.language), "未知的界面语言");
+        ensure!(
+            ["Ctrl+V", "Shift+Insert"].contains(&self.paste_shortcut.as_str()),
+            "未知的回贴按键"
+        );
         ensure!(
             (1..=1_000_000).contains(&self.max_entries),
             "保留条数须在 1 到 1,000,000 之间"
@@ -242,6 +248,18 @@ mod tests {
         let restored: Settings =
             serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
         assert!(restored.middle_click_activation);
+    }
+    #[test]
+    fn paste_shortcut_defaults_and_validates_terminal_option() {
+        let mut settings: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(settings.paste_shortcut, "Ctrl+V");
+        settings.paste_shortcut = "Shift+Insert".into();
+        settings.validate().unwrap();
+        let restored: Settings =
+            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(restored.paste_shortcut, "Shift+Insert");
+        settings.paste_shortcut = "Enter".into();
+        assert!(settings.validate().is_err());
     }
     #[test]
     fn dedup_is_format_sensitive_and_preserves_whitespace() {

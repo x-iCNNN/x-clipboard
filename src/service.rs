@@ -711,13 +711,15 @@ impl Service {
                         let content = db.content(&id)?;
                         self.backend.write(&content, plain)?;
                         if let Some(target) = target {
-                            self.backend.paste(target)?;
+                            self.backend
+                                .paste_using(target, &self.snapshot().settings.paste_shortcut)?;
                         }
                     }
                     Command::Text(text, target) => {
                         self.backend.write(&ClipContent::text(text), true)?;
                         if let Some(target) = target {
-                            self.backend.paste(target)?;
+                            self.backend
+                                .paste_using(target, &self.snapshot().settings.paste_shortcut)?;
                         }
                     }
                     Command::Preview(id, page, generation) => {

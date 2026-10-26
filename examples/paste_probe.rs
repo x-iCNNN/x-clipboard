@@ -10,12 +10,14 @@ fn main() -> anyhow::Result<()> {
         Win32::{
             Foundation::{LPARAM, WPARAM},
             System::LibraryLoader::GetModuleHandleW,
-            UI::{Input::KeyboardAndMouse::SetFocus, WindowsAndMessaging::*},
+            UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
         },
         core::w,
     };
     use x_clipboard::{model::ClipContent, platform};
     let arguments: Vec<_> = std::env::args().collect();
+    let terminal = arguments.iter().any(|arg| arg == "--terminal");
+    probe_window::TERMINAL.store(terminal, Ordering::Release);
     let interrupted = arguments.iter().any(|arg| arg == "--interrupt-focus");
     let destroyed = arguments.iter().any(|arg| arg == "--destroy-control");
     let redirect_focus = arguments.iter().any(|arg| arg == "--redirect-first-focus");
@@ -102,7 +104,7 @@ fn main() -> anyhow::Result<()> {
             None,
         )?;
         probe_window::EDITOR.store(editor.0 as usize, Ordering::Release);
-        if interrupted || redirect_focus || other_control || preserve_focus {
+        if interrupted || redirect_focus || other_control || preserve_focus || terminal {
             let previous = SetWindowLongPtrW(
                 editor,
                 GWLP_WNDPROC,
@@ -113,6 +115,64 @@ fn main() -> anyhow::Result<()> {
         }
         let _ = ShowWindow(target, SW_SHOW);
         let _ = SetForegroundWindow(target);
+        if GetForegroundWindow() != target && arguments.iter().any(|arg| arg == "--activate-owned")
+        {
+            use windows::Win32::Foundation::{POINT, RECT};
+            struct Cursor(POINT);
+            impl Drop for Cursor {
+                fn drop(&mut self) {
+                    unsafe {
+                        let _ = SetCursorPos(self.0.x, self.0.y);
+                    }
+                }
+            }
+            let mut original = POINT::default();
+            GetCursorPos(&mut original)?;
+            let _cursor = Cursor(original);
+            SetWindowPos(
+                target,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            )?;
+            let mut rect = RECT::default();
+            GetWindowRect(target, &mut rect)?;
+            let point = POINT {
+                x: rect.left + 60,
+                y: rect.top + 70,
+            };
+            anyhow::ensure!(
+                GetAncestor(WindowFromPoint(point), GA_ROOT) == target,
+                "owned target obscured; refuse to click"
+            );
+            SetCursorPos(point.x, point.y)?;
+            let click = [MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP].map(|flags| INPUT {
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 {
+                    mi: MOUSEINPUT {
+                        dwFlags: flags,
+                        ..Default::default()
+                    },
+                },
+            });
+            anyhow::ensure!(
+                SendInput(&click, std::mem::size_of::<INPUT>() as i32) == 2,
+                "owned activation click denied"
+            );
+            pump(Duration::from_millis(120));
+            SetWindowPos(
+                target,
+                Some(HWND_NOTOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            )?;
+        }
         if GetForegroundWindow() != target {
             println!("WAIT: activate the window named X Clipboard · own target probe (30 seconds)");
             let deadline = Instant::now() + Duration::from_secs(30);
@@ -252,7 +312,12 @@ fn main() -> anyhow::Result<()> {
         }
         probe_window::ARMED.store(true, Ordering::Release);
         let started = Instant::now();
-        let worker = std::thread::spawn(move || backend.paste(saved));
+        let paste_shortcut = if arguments.iter().any(|arg| arg == "--shift-insert") {
+            "Shift+Insert"
+        } else {
+            "Ctrl+V"
+        };
+        let worker = std::thread::spawn(move || backend.paste_using(saved, paste_shortcut));
         while !worker.is_finished() && started.elapsed() < Duration::from_secs(4) {
             pump(Duration::from_millis(10));
         }
@@ -273,8 +338,8 @@ fn main() -> anyhow::Result<()> {
         } else {
             GetWindowTextW(editor, &mut text)
         };
-        let inserted = String::from_utf16_lossy(&text[..count as usize])
-            == "xclipboard-own-window-paste-probe";
+        let actual = String::from_utf16_lossy(&text[..count as usize]);
+        let inserted = actual == "xclipboard-own-window-paste-probe";
         let third_count = GetWindowTextW(third_editor, &mut text);
         let third_still_foreground = GetForegroundWindow() == third;
         probe_window::ARMED.store(false, Ordering::Release);
@@ -287,13 +352,13 @@ fn main() -> anyhow::Result<()> {
                 .expect_err("paste must stop when the intended input target is lost")
                 .to_string();
             anyhow::ensure!(
-                error.contains(if interrupted {
-                    "目标焦点已变化"
+                if interrupted {
+                    error.contains("目标焦点已变化") || error.contains("目标输入框已变化")
                 } else if other_control {
-                    "目标输入框已变化"
+                    error.contains("目标输入框已变化")
                 } else {
-                    "原输入框已关闭"
-                }),
+                    error.contains("原输入框已关闭")
+                },
                 "unexpected failure: {error}"
             );
             anyhow::ensure!(
@@ -312,7 +377,7 @@ fn main() -> anyhow::Result<()> {
         result?;
         anyhow::ensure!(
             inserted,
-            "FAIL: paste returned success but input control stayed empty (deferred_focus={deferred})"
+            "FAIL: paste did not insert expected text (terminal={terminal}, actual={actual:?}, deferred_focus={deferred})"
         );
         println!(
             "PASS: actual clipboard text reached original input control (deferred_focus={deferred}, manual_focus={manual_focus}, redirect_first_focus={redirect_focus})"
@@ -344,6 +409,7 @@ mod probe_window {
         Foundation::*,
         UI::{Input::KeyboardAndMouse::SetFocus, WindowsAndMessaging::*},
     };
+    pub static TERMINAL: AtomicBool = AtomicBool::new(false);
     pub static EDITOR: AtomicUsize = AtomicUsize::new(0);
     pub static ARMED: AtomicBool = AtomicBool::new(false);
     pub static DELAY: AtomicU32 = AtomicU32::new(0);
@@ -363,6 +429,29 @@ mod probe_window {
         lparam: LPARAM,
     ) -> LRESULT {
         unsafe {
+            if TERMINAL.load(Ordering::Acquire) {
+                use windows::Win32::UI::Input::KeyboardAndMouse::{
+                    GetAsyncKeyState, VK_CONTROL, VK_V,
+                };
+                if message == WM_KEYDOWN
+                    && wparam.0 == VK_V.0 as usize
+                    && GetAsyncKeyState(VK_CONTROL.0 as i32) < 0
+                {
+                    return LRESULT(0);
+                }
+                if message == WM_KEYDOWN
+                    && wparam.0 == windows::Win32::UI::Input::KeyboardAndMouse::VK_INSERT.0 as usize
+                    && windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState(
+                        windows::Win32::UI::Input::KeyboardAndMouse::VK_SHIFT.0 as i32,
+                    ) < 0
+                {
+                    return SendMessageW(hwnd, WM_PASTE, None, None);
+                }
+                if message == WM_CHAR && wparam.0 == 22 {
+                    SetWindowTextW(hwnd, windows::core::w!("^V")).unwrap();
+                    return LRESULT(0);
+                }
+            }
             let original: WNDPROC = std::mem::transmute(EDITOR_PROCEDURE.load(Ordering::Acquire));
             let result = CallWindowProcW(original, hwnd, message, wparam, lparam);
             if message == WM_KILLFOCUS && PRESERVE_FOCUS.load(Ordering::Acquire) {
