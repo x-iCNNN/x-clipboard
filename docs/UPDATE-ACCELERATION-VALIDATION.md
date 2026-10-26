@@ -38,3 +38,11 @@ Actual custom-path install, overwrite upgrade, packaged payload integrity, and u
 
 - ZIP SHA-256: `7b0ccb5a3d69639799e19dbffa70a3e1bcbf664e71363ece8b0320df19e8db09`.
 - Setup SHA-256: `d89852904790e4c8339788638d7aa4f65180d7714931eb23f31ea706112148ee`.
+
+## Public release / 公开发布
+
+- Published https://github.com/x-iCNNN/x-clipboard/releases/tag/v0.3.5 with the four change-only bilingual entries from RELEASE-v0.3.5.md.
+- Official authenticated release metadata reported latest=v0.3.5, draft=false, and four assets; all asset sizes and GitHub SHA-256 digests matched the final local packages before publication.
+- Remote tag points to `bb23aab749f6e7ab0e3efd44f22584b159e45397`; all tracked build inputs matched the packaging workspace after line-ending normalization.
+- Post-publication anonymous `updater::tests::github_live_check` stopped at GitHub API HTTP 403 rate limit; this is not counted as a v0.3.5 updater end-to-end pass. Metadata trust was not weakened to bypass it.
+- Direct public download of `x-clipboard-v0.3.5-windows-x64-setup.exe` succeeded; its SHA-256 matched the verified local and GitHub asset. Real mirrored payload verification and source fallback results are recorded above.
