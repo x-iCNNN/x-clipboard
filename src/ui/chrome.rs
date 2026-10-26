@@ -16,6 +16,7 @@ impl Desktop {
         column = column.child(
             div()
                 .h(px(62.))
+                .window_control_area(WindowControlArea::Drag)
                 .flex_shrink_0()
                 .px_2()
                 .flex()

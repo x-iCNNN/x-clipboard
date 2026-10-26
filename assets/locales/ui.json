@@ -4827,5 +4827,159 @@
     "Choisissez Shift+Insert pour les terminaux SSH sans Ctrl+V. S’applique à tous les collages automatiques.",
     "Für SSH-Terminals ohne Ctrl+V wählen Sie Shift+Insert. Gilt für jedes automatische Einfügen.",
     "Escolha Shift+Insert para terminais SSH sem Ctrl+V. Aplica-se a todas as colagens automáticas."
+  ],
+  "正在准备下载…": [
+    "正在准备下载…",
+    "正在準備下載…",
+    "Preparing download…",
+    "ダウンロードを準備中…",
+    "다운로드 준비 중…",
+    "Preparando descarga…",
+    "Préparation du téléchargement…",
+    "Download wird vorbereitet…",
+    "Preparando download…"
+  ],
+  "正在下载更新… {percent}%": [
+    "正在下载更新… {percent}%",
+    "正在下載更新… {percent}%",
+    "Downloading update… {percent}%",
+    "更新をダウンロード中… {percent}%",
+    "업데이트 다운로드 중… {percent}%",
+    "Descargando actualización… {percent}%",
+    "Téléchargement de la mise à jour… {percent}%",
+    "Update wird heruntergeladen… {percent}%",
+    "Baixando atualização… {percent}%"
+  ],
+  "正在校验更新…": [
+    "正在校验更新…",
+    "正在驗證更新…",
+    "Verifying update…",
+    "更新を検証中…",
+    "업데이트 확인 중…",
+    "Verificando actualización…",
+    "Vérification de la mise à jour…",
+    "Update wird geprüft…",
+    "Verificando atualização…"
+  ],
+  "下载中": [
+    "下载中",
+    "下載中",
+    "Downloading",
+    "ダウンロード中",
+    "다운로드 중",
+    "Descargando",
+    "Téléchargement",
+    "Wird heruntergeladen",
+    "Baixando"
+  ],
+  "版本更新": [
+    "版本更新",
+    "版本更新",
+    "Updates",
+    "アップデート",
+    "업데이트",
+    "Actualizaciones",
+    "Mises à jour",
+    "Updates",
+    "Atualizações"
+  ],
+  "应用更新": [
+    "应用更新",
+    "應用程式更新",
+    "Application update",
+    "アプリの更新",
+    "앱 업데이트",
+    "Actualización de la app",
+    "Mise à jour de l’application",
+    "Anwendungsupdate",
+    "Atualização do aplicativo"
+  ],
+  "自动更新": [
+    "自动更新",
+    "自動更新",
+    "Automatic updates",
+    "自動更新",
+    "자동 업데이트",
+    "Actualizaciones automáticas",
+    "Mises à jour automatiques",
+    "Automatische Updates",
+    "Atualizações automáticas"
+  ],
+  "检查更新": [
+    "检查更新",
+    "檢查更新",
+    "Check for updates",
+    "更新を確認",
+    "업데이트 확인",
+    "Buscar actualizaciones",
+    "Rechercher des mises à jour",
+    "Nach Updates suchen",
+    "Buscar atualizações"
+  ],
+  "下载更新": [
+    "下载更新",
+    "下載更新",
+    "Download update",
+    "更新をダウンロード",
+    "업데이트 다운로드",
+    "Descargar actualización",
+    "Télécharger la mise à jour",
+    "Update herunterladen",
+    "Baixar atualização"
+  ],
+  "立即重启更新": [
+    "立即重启更新",
+    "立即重新啟動更新",
+    "Restart to update",
+    "再起動して更新",
+    "다시 시작하여 업데이트",
+    "Reiniciar para actualizar",
+    "Redémarrer pour mettre à jour",
+    "Zum Aktualisieren neu starten",
+    "Reiniciar para atualizar"
+  ],
+  "GitHub 发布": [
+    "GitHub 发布",
+    "GitHub 發布",
+    "GitHub releases",
+    "GitHub リリース",
+    "GitHub 릴리스",
+    "Versiones de GitHub",
+    "Versions GitHub",
+    "GitHub-Releases",
+    "Versões do GitHub"
+  ],
+  "查看版本说明与下载文件。": [
+    "查看版本说明与下载文件。",
+    "查看版本說明與下載檔案。",
+    "Release notes and downloads.",
+    "リリースノートとダウンロード。",
+    "릴리스 노트 및 다운로드.",
+    "Notas de versión y descargas.",
+    "Notes de version et téléchargements.",
+    "Versionshinweise und Downloads.",
+    "Notas de versão e downloads."
+  ],
+  "启动后及每 6 小时检查并下载，正常退出后安装。": [
+    "启动后及每 6 小时检查并下载，正常退出后安装。",
+    "啟動後及每 6 小時檢查並下載，正常退出後安裝。",
+    "Checks and downloads at startup and every 6 hours; installs after normal exit.",
+    "起動後および6時間ごとに確認とダウンロードを行い、通常終了後にインストールします。",
+    "시작 후 6시간마다 확인 및 다운로드하며 정상 종료 후 설치합니다.",
+    "Busca y descarga al iniciar y cada 6 horas; instala al salir normalmente.",
+    "Recherche et télécharge au démarrage et toutes les 6 heures ; installe après fermeture normale.",
+    "Prüft und lädt beim Start und alle 6 Stunden; installiert nach normalem Beenden.",
+    "Verifica e baixa ao iniciar e a cada 6 horas; instala após sair normalmente."
+  ],
+  "从 GitHub 获取正式版本。": [
+    "从 GitHub 获取正式版本。",
+    "從 GitHub 取得正式版本。",
+    "Get stable releases from GitHub.",
+    "GitHub から安定版を取得します。",
+    "GitHub에서 정식 버전을 받습니다.",
+    "Obtén versiones estables de GitHub.",
+    "Obtenir les versions stables depuis GitHub.",
+    "Stabile Versionen von GitHub beziehen.",
+    "Obter versões estáveis do GitHub."
   ]
 }

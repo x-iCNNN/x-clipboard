@@ -1,4 +1,6 @@
 //! GitHub stable releases, verified downloads, and an out-of-process Windows installer.
+mod sources;
+
 use anyhow::{Context, Result, bail, ensure};
 use reqwest::blocking::Client;
 use semver::Version;
@@ -54,19 +56,50 @@ pub struct Prepared {
     pid: u32,
     restart: bool,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Phase {
+    Probing,
+    Downloading,
+    Verifying,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct Progress {
+    pub received: u64,
+    pub total: u64,
+    pub phase: Phase,
+}
+impl Default for Progress {
+    fn default() -> Self {
+        Self {
+            received: 0,
+            total: 0,
+            phase: Phase::Probing,
+        }
+    }
+}
+impl Progress {
+    pub fn fraction(self) -> f32 {
+        if self.total == 0 {
+            0.
+        } else {
+            (self.received as f64 / self.total as f64).clamp(0., 1.) as f32
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum State {
     Idle,
     Checking,
     Latest,
     Available(Release),
-    Downloading,
+    Downloading(Progress),
     Ready(Prepared),
     Error(String),
 }
 impl State {
     pub fn busy(&self) -> bool {
-        matches!(self, Self::Checking | Self::Downloading)
+        matches!(self, Self::Checking | Self::Downloading(_))
     }
     pub fn message(&self) -> String {
         match self {
@@ -74,7 +107,14 @@ impl State {
             Self::Checking => "正在检查更新…".into(),
             Self::Latest => "当前已是最新版本。".into(),
             Self::Available(r) => format!("发现新版本 {}", r.tag_name),
-            Self::Downloading => "正在下载并校验更新…".into(),
+            Self::Downloading(p) => match p.phase {
+                Phase::Probing => crate::i18n::tr("正在准备下载…").into(),
+                Phase::Downloading => crate::i18n::message(
+                    "正在下载更新… {percent}%",
+                    &[("percent", format!("{:.0}", p.fraction() * 100.))],
+                ),
+                Phase::Verifying => crate::i18n::tr("正在校验更新…").into(),
+            },
             Self::Ready(p) => format!(
                 "{} 已就绪，可立即重启更新；开启自动更新时将在退出后安装。",
                 p.version
@@ -96,6 +136,17 @@ impl Updater {
             root,
             next_check: Instant::now() + Duration::from_secs(20),
         }
+    }
+    #[cfg(feature = "ui-capture")]
+    pub fn review_progress(&self, percent: u64) {
+        set(
+            &self.state,
+            State::Downloading(Progress {
+                received: percent.min(100),
+                total: 100,
+                phase: Phase::Downloading,
+            }),
+        );
     }
     pub fn snapshot(&self) -> (u64, State) {
         self.state.lock().unwrap().clone()
@@ -128,8 +179,9 @@ impl Updater {
                 match release {
                     None => Ok(State::Latest),
                     Some(release) if automatic => {
-                        set(&state, State::Downloading);
-                        Ok(State::Ready(prepare(&client, &release, &root)?))
+                        Ok(State::Ready(prepare(&client, &release, &root, |p| {
+                            set(&state, State::Downloading(p))
+                        })?))
                     }
                     Some(release) => Ok(State::Available(release)),
                 }
@@ -147,13 +199,14 @@ impl Updater {
                 return;
             };
             let release = release.clone();
-            *state = (state.0 + 1, State::Downloading);
+            *state = (state.0 + 1, State::Downloading(Progress::default()));
             release
         };
         let state = self.state.clone();
         let root = self.root.clone();
         std::thread::spawn(move || {
-            let result = client().and_then(|c| prepare(&c, &release, &root));
+            let result = client()
+                .and_then(|c| prepare(&c, &release, &root, |p| set(&state, State::Downloading(p))));
             set(
                 &state,
                 match result {
@@ -221,8 +274,7 @@ fn bounded_bytes(reader: impl Read, limit: u64) -> Result<Vec<u8>> {
     ensure!(bytes.len() as u64 <= limit, "下载内容超过大小限制");
     Ok(bytes)
 }
-fn verify(bytes: &[u8], asset: &Asset) -> Result<()> {
-    ensure!(bytes.len() as u64 == asset.size, "更新包大小不匹配");
+fn digest(asset: &Asset) -> Result<&str> {
     let digest = asset
         .digest
         .as_deref()
@@ -232,13 +284,23 @@ fn verify(bytes: &[u8], asset: &Asset) -> Result<()> {
         digest.len() == 64 && digest.bytes().all(|c| c.is_ascii_hexdigit()),
         "无效的 SHA-256"
     );
+    Ok(digest)
+}
+fn verify(bytes: &[u8], asset: &Asset) -> Result<()> {
+    ensure!(bytes.len() as u64 == asset.size, "更新包大小不匹配");
+    let digest = digest(asset)?;
     ensure!(
         format!("{:x}", Sha256::digest(bytes)).eq_ignore_ascii_case(digest),
         "更新包 SHA-256 校验失败"
     );
     Ok(())
 }
-fn prepare(client: &Client, release: &Release, root: &Path) -> Result<Prepared> {
+fn prepare(
+    client: &Client,
+    release: &Release,
+    root: &Path,
+    mut progress: impl FnMut(Progress),
+) -> Result<Prepared> {
     let asset = release.asset()?;
     ensure!(
         asset.size > 0 && asset.size <= MAX_DOWNLOAD,
@@ -252,11 +314,7 @@ fn prepare(client: &Client, release: &Release, root: &Path) -> Result<Prepared> 
         asset.browser_download_url == expected,
         "更新包地址不属于此 GitHub 仓库"
     );
-    let bytes = bounded_bytes(
-        client.get(&expected).send()?.error_for_status()?,
-        MAX_DOWNLOAD,
-    )?;
-    verify(&bytes, asset)?;
+    let bytes = sources::download(client, asset, &sources::urls(&expected), &mut progress)?;
     let executable = std::env::current_exe()?;
     ensure!(
         executable.file_name().and_then(|n| n.to_str()) == Some("x-clipboard.exe"),

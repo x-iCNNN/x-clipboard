@@ -432,6 +432,14 @@ async fn run(
             "paste shortcut did not save"
         );
     }
+    if let Ok(progress) = std::env::var("X_CLIPBOARD_UI_REVIEW_UPDATE_PROGRESS") {
+        let progress = progress.parse::<u64>()?;
+        ensure!(progress <= 100, "invalid review download progress");
+        cx.update(|cx| cx.global::<Owner>().updater.review_progress(progress));
+    }
+    if std::env::var("X_CLIPBOARD_UI_REVIEW_DRAG_LOGO").as_deref() == Ok("1") {
+        return check_logo_drag(cx, output).await;
+    }
     service.set_history_active(true);
     for _ in 0..200 {
         if service.snapshot().history_loaded {
@@ -1214,6 +1222,67 @@ unsafe fn click_owned(
         );
         Ok(())
     }
+}
+
+async fn check_logo_drag(cx: &mut AsyncApp, output: &std::path::Path) -> Result<()> {
+    use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
+    for kind in [Kind::Main, Kind::Settings] {
+        cx.update(|cx| open_window(kind, cx));
+        lifecycle_tick(cx, 300).await;
+        let handle = cx.update(|cx| cx.global::<Owner>().windows[&kind].0);
+        let (hwnd, scale) = cx.update(|cx| {
+            handle.update(cx, |_, window, _| {
+                (HWND(native(window) as *mut _), window.scale_factor())
+            })
+        })?;
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_SHOW);
+            let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
+        }
+        lifecycle_tick(cx, 180).await;
+        let mut rect = RECT::default();
+        unsafe {
+            GetWindowRect(hwnd, &mut rect)?;
+        }
+        for (y, expected) in [(30., HTCAPTION), (120., HTCLIENT)] {
+            // GPUI hit testing uses the last dispatched mouse position, rather than lParam.
+            cx.update(|cx| {
+                handle.update(cx, |_, window, cx| {
+                    window.draw(cx).clear(cx);
+                    window.dispatch_event(
+                        PlatformInput::MouseMove(MouseMoveEvent {
+                            position: point(px(40.), px(y)),
+                            pressed_button: None,
+                            modifiers: Modifiers::default(),
+                        }),
+                        cx,
+                    );
+                })
+            })?;
+            let x = rect.left + (40. * scale) as i32;
+            let screen_y = rect.top + (y * scale) as i32;
+            let actual = unsafe {
+                SendMessageW(
+                    hwnd,
+                    WM_NCHITTEST,
+                    None,
+                    Some(LPARAM(
+                        (((screen_y as u32 & 65535) << 16) | (x as u32 & 65535)) as isize,
+                    )),
+                )
+                .0
+            };
+            ensure!(
+                actual == expected as isize,
+                "incorrect sidebar hit region: {kind:?}, y={y}, actual={actual}"
+            );
+        }
+    }
+    std::fs::write(
+        output.join("logo-drag-result.json"),
+        r#"{"history_logo_caption":true,"settings_logo_caption":true,"navigation_remains_client":true}"#,
+    )?;
+    Ok(())
 }
 
 async fn check_initial_quick_size(cx: &mut AsyncApp, output: &std::path::Path) -> Result<()> {

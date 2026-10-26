@@ -866,8 +866,7 @@ impl Desktop {
                             .font_weight(FontWeight::SEMIBOLD)
                             .child("X Clipboard"),
                     )
-                    .child(value("每一次复制，都有迹可循。", cx))
-                    .child(badge(env!("CARGO_PKG_VERSION"), false, cx)),
+                    .child(value("每一次复制，都有迹可循。", cx)),
             )
             .child(self.update_section(cx))
             .child(section(
@@ -947,6 +946,7 @@ impl Desktop {
         let label = match &state {
             State::Available(_) => "下载更新",
             State::Ready(_) => "立即重启更新",
+            State::Downloading(_) => "下载中",
             _ => "检查更新",
         };
         let status = if SUPPORTED {
@@ -980,7 +980,59 @@ impl Desktop {
                 }
             })
             .into_any_element();
-        let mut rows = vec![setting_row("应用更新", &status, control, false, cx)];
+        let progress = match &state {
+            State::Downloading(p) => Some(p.fraction()),
+            _ => None,
+        };
+        let update_card = div()
+            .relative()
+            .overflow_hidden()
+            .border_b_1()
+            .border_color(cx.theme().border)
+            .when_some(progress, |d, progress| {
+                d.child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .bottom_0()
+                        .w(relative(progress))
+                        .bg(accent(cx).opacity(0.12)),
+                )
+            })
+            .child(
+                div()
+                    .relative()
+                    .px(px(16.))
+                    .py(px(13.))
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .gap_3()
+                            .child(
+                                div()
+                                    .text_size(px(14.))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(tr("应用更新")),
+                            )
+                            .child(badge(env!("CARGO_PKG_VERSION"), false, cx)),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(18.))
+                            .child(div().flex_1().min_w_0().child(value(&status, cx)))
+                            .child(div().flex_shrink_0().child(control)),
+                    ),
+            )
+            .into_any_element();
+        let mut rows = vec![update_card];
         if SUPPORTED {
             rows.push(self.switch_row(
                 "自动更新",
