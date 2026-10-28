@@ -47,7 +47,7 @@ This project focuses on a few practical principles:
 | | English | 中文 |
 |---|---|---|
 | **Capture** | Text, HTML/RTF, images, and file references; Windows file history is replayed with copy semantics. | 采集文本、HTML/RTF、图片和文件引用；Windows 文件历史按复制语义回放。 |
-| **Find** | Full-text search, exact-format deduplication, and recently copied ordering. | 全文搜索、按格式精确去重、最近复制排序。 |
+| **Find** | Full-text search, identical-text deduplication with the latest complete formats, and recently copied ordering. | 全文搜索、相同文字去重并保留最近一次完整格式、最近复制排序。 |
 | **Organize** | Pin, favorite, multi-select, delete, and clear unprotected history. | 置顶、收藏、多选、删除和清理未受保护的历史记录。 |
 | **Paste again** | Re-paste a selected history item; the quick panel attempts to restore the previous target control first. | 重新回贴选中的历史内容；快捷面板会先尝试恢复原目标控件焦点。 |
 | **Preview** | Text/code, Markdown, HTML, images, PDF pages, and direct folder children. | 预览文本/代码、Markdown、HTML、图片、PDF 页面和文件夹直接子项。 |

@@ -303,7 +303,7 @@ impl HistoryStore {
             let existing = rows.next().await?.map(|row| anyhow::Ok(postcard::from_bytes::<Entry>(&row.get::<Vec<u8>>(0)?)?)).transpose()?;
             drop(rows);
             if record.deleted.value {
-                if let Some(entry) = existing { self.connection.execute("DELETE FROM clips WHERE id=?1", [entry.id.clone()]).await?; self.connection.execute("DELETE FROM clip_search WHERE id=?1", [entry.id.clone()]).await?; self.connection.execute("DELETE FROM clip_thumbnails WHERE id=?1", [entry.id]).await?; }
+                if let Some(entry) = existing { self.connection.execute("DELETE FROM clips WHERE id=?1", [entry.id.clone()]).await?; self.connection.execute("DELETE FROM clip_search WHERE id=?1", [entry.id.clone()]).await?; self.connection.execute("DELETE FROM clip_dedup WHERE id=?1", [entry.id.clone()]).await?; self.connection.execute("DELETE FROM clip_thumbnails WHERE id=?1", [entry.id]).await?; }
                 self.save_record(hash, &record, false).await?;
                 return Ok(());
             }
@@ -321,6 +321,7 @@ impl HistoryStore {
                     self.connection.execute("INSERT INTO clips(id,hash,metadata,payload,ordinal,pinned,favorite,bytes) VALUES(?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT(hash) DO UPDATE SET metadata=excluded.metadata,ordinal=excluded.ordinal,pinned=excluded.pinned,favorite=excluded.favorite",
                         turso::params![entry.id.clone(),hash,postcard::to_stdvec(&entry)?,postcard::to_stdvec(content)?,entry.order,entry.pinned as i64,entry.favorite as i64,entry.bytes as i64]).await?;
                     self.connection.execute("INSERT INTO clip_search(id,searchable) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET searchable=excluded.searchable", [entry.id.clone(),searchable(content)]).await?;
+                    self.connection.execute("INSERT INTO clip_dedup(id,content_key) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET content_key=excluded.content_key", [entry.id.clone(),content.dedup_key()]).await?;
                 } else {
                     self.connection.execute("UPDATE clips SET metadata=?1,ordinal=?2,pinned=?3,favorite=?4 WHERE id=?5",turso::params![postcard::to_stdvec(&entry)?,entry.order,entry.pinned as i64,entry.favorite as i64,entry.id]).await?;
                 }

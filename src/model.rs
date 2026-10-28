@@ -64,6 +64,13 @@ impl ClipContent {
         }
         format!("{:x}", digest.finalize())
     }
+    pub(crate) fn dedup_key(&self) -> String {
+        if !self.text.is_empty() && matches!(self.kind(), "text" | "rich") {
+            format!("text:{:x}", Sha256::digest(self.text.as_bytes()))
+        } else {
+            format!("formats:{}", self.fingerprint())
+        }
+    }
     pub fn kind(&self) -> &'static str {
         if !self.files.is_empty() {
             "file"

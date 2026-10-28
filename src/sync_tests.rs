@@ -175,6 +175,41 @@ fn sync(store: &HistoryStore, server: &Server) {
 }
 
 #[test]
+fn latest_text_format_replaces_synced_older_formats_without_resurrection() {
+    let server = Server::new();
+    let (_a, a) = device();
+    let (_b, b) = device();
+    let plain = ClipContent::text("same text across devices");
+    let entry = a.capture(&plain, &Settings::default()).unwrap();
+    a.protect(&entry.id, Some(true), Some(true)).unwrap();
+    sync(&a, &server);
+    sync(&b, &server);
+    let mut rich = plain.clone();
+    rich.formats.push(FormatData {
+        name: "text/html".into(),
+        bytes: b"<b>same text across devices</b>".to_vec(),
+    });
+    a.capture(&rich, &Settings::default()).unwrap();
+    sync(&a, &server);
+    sync(&b, &server);
+    for store in [&a, &b] {
+        let entries = store.list().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].pinned && entries[0].favorite);
+        assert!(store.content(&entries[0].id).unwrap().formats == rich.formats);
+    }
+    b.capture(&plain, &Settings::default()).unwrap();
+    sync(&b, &server);
+    sync(&a, &server);
+    for store in [&a, &b] {
+        let entries = store.list().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].pinned && entries[0].favorite);
+        assert!(store.content(&entries[0].id).unwrap().formats == plain.formats);
+    }
+}
+
+#[test]
 fn two_devices_rich_payload_metadata_deletion_and_offline_reconnect() {
     let server = Server::new();
     let (_a, a) = device();

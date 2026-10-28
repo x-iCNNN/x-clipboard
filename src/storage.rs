@@ -54,6 +54,33 @@ impl HistoryStore {
             connection.execute("CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)",()).await?;
             connection.execute("CREATE TABLE IF NOT EXISTS clip_search(id TEXT PRIMARY KEY, searchable TEXT NOT NULL)",()).await?;
             connection.execute("CREATE TABLE IF NOT EXISTS clip_thumbnails(id TEXT PRIMARY KEY, png BLOB NOT NULL)", ()).await?;
+            connection.execute("CREATE TABLE IF NOT EXISTS clip_dedup(id TEXT PRIMARY KEY, content_key TEXT NOT NULL)", ()).await?;
+            connection
+                .execute(
+                    "CREATE INDEX IF NOT EXISTS clip_dedup_key ON clip_dedup(content_key)",
+                    (),
+                )
+                .await?;
+            let mut missing_keys = connection
+                .query(
+                    "SELECT id,payload FROM clips WHERE id NOT IN (SELECT id FROM clip_dedup)",
+                    (),
+                )
+                .await?;
+            let mut keys = Vec::new();
+            while let Some(row) = missing_keys.next().await? {
+                let content: ClipContent = postcard::from_bytes(&row.get::<Vec<u8>>(1)?)?;
+                keys.push((row.get::<String>(0)?, content.dedup_key()));
+            }
+            drop(missing_keys);
+            for (id, key) in keys {
+                connection
+                    .execute(
+                        "INSERT INTO clip_dedup(id,content_key) VALUES(?1,?2)",
+                        [id, key],
+                    )
+                    .await?;
+            }
             let mut missing = connection
                 .query(
                     "SELECT id,payload FROM clips WHERE id NOT IN (SELECT id FROM clip_search)",
@@ -200,16 +227,48 @@ impl HistoryStore {
         content.validate()?;
         let hash = content.fingerprint();
         let entry = self.transaction(|| pollster::block_on(async {
-                let mut rows=self.connection.query("SELECT metadata FROM clips WHERE hash=?1",[hash.clone()]).await?;
-                let previous=rows.next().await?.map(|r|r.get::<Vec<u8>>(0)).transpose()?;drop(rows);
-                let mut order=self.connection.query("SELECT COALESCE(MAX(ordinal),0)+1 FROM clips",()).await?;
-                let ordinal=order.next().await?.context("无法读取排序序号")?.get::<i64>(0)?;drop(order);
-                let mut entry=if let Some(bytes)=previous { postcard::from_bytes::<Entry>(&bytes)? } else {Entry{id:uuid::Uuid::new_v4().to_string(),fingerprint:hash.clone(),title:content.title(),text:content.text.chars().take(512).collect(),kind:content.kind().into(),source:content.source.clone(),copied_at:0,order:0,pinned:false,favorite:false,bytes:content.bytes()}};
-                entry.copied_at=now_ms();entry.order=ordinal;entry.source=content.source.clone();
-                self.connection.execute("INSERT INTO clips(id,hash,metadata,payload,ordinal,pinned,favorite,bytes) VALUES(?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT(hash) DO UPDATE SET metadata=excluded.metadata,ordinal=excluded.ordinal",turso::params![entry.id.clone(),hash,postcard::to_stdvec(&entry)?,postcard::to_stdvec(content)?,ordinal,entry.pinned as i64,entry.favorite as i64,entry.bytes as i64]).await?;
-                self.connection.execute("INSERT INTO clip_search(id,searchable) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET searchable=excluded.searchable",[entry.id.clone(),searchable(content)]).await?;
-                self.sync_capture(&entry).await?;
-                anyhow::Ok(entry)
+            let key = content.dedup_key();
+            let mut rows = self.connection.query(
+                "SELECT metadata FROM clips WHERE hash=?1 OR id IN (SELECT id FROM clip_dedup WHERE content_key=?2) ORDER BY ordinal DESC",
+                [hash.clone(), key.clone()],
+            ).await?;
+            let mut previous = Vec::<Entry>::new();
+            while let Some(row) = rows.next().await? {
+                previous.push(postcard::from_bytes(&row.get::<Vec<u8>>(0)?)?);
+            }
+            drop(rows);
+            let mut order = self.connection.query("SELECT COALESCE(MAX(ordinal),0)+1 FROM clips", ()).await?;
+            let ordinal = order.next().await?.context("无法读取排序序号")?.get::<i64>(0)?;
+            drop(order);
+            let entry = Entry {
+                id: previous.iter().find(|e| e.fingerprint == hash).or(previous.first())
+                    .map(|e| e.id.clone()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                fingerprint: hash.clone(), title: content.title(),
+                text: content.text.chars().take(512).collect(), kind: content.kind().into(),
+                source: content.source.clone(), copied_at: now_ms(), order: ordinal,
+                pinned: previous.iter().any(|e| e.pinned),
+                favorite: previous.iter().any(|e| e.favorite), bytes: content.bytes(),
+            };
+            // Superseded format fingerprints must be tombstoned so sync cannot resurrect them.
+            let replaced: Vec<_> = previous.iter().filter(|e| e.fingerprint != hash).map(|e| e.id.clone()).collect();
+            self.sync_remove(&replaced, true).await?;
+            for old in &previous {
+                self.connection.execute("DELETE FROM clips WHERE id=?1", [old.id.as_str()]).await?;
+                self.connection.execute("DELETE FROM clip_dedup WHERE id=?1", [old.id.as_str()]).await?;
+                self.connection.execute("DELETE FROM clip_search WHERE id=?1", [old.id.as_str()]).await?;
+                if old.id != entry.id || old.fingerprint != hash {
+                    self.connection.execute("DELETE FROM clip_thumbnails WHERE id=?1", [old.id.as_str()]).await?;
+                }
+            }
+            self.connection.execute("INSERT INTO clips(id,hash,metadata,payload,ordinal,pinned,favorite,bytes) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                turso::params![entry.id.clone(),hash,postcard::to_stdvec(&entry)?,postcard::to_stdvec(content)?,ordinal,entry.pinned as i64,entry.favorite as i64,entry.bytes as i64]).await?;
+            self.connection.execute("INSERT INTO clip_dedup(id,content_key) VALUES(?1,?2)", [entry.id.clone(),key]).await?;
+            self.connection.execute("INSERT INTO clip_search(id,searchable) VALUES(?1,?2)", [entry.id.clone(),searchable(content)]).await?;
+            self.sync_capture(&entry).await?;
+            if let Some(old) = previous.iter().find(|old| old.fingerprint == entry.fingerprint) {
+                self.sync_protect(&entry, old.pinned != entry.pinned, old.favorite != entry.favorite).await?;
+            }
+            Ok(entry)
         }))?;
         self.prune(settings)?;
         Ok(entry)
@@ -275,6 +334,7 @@ impl HistoryStore {
             for cleanup in [
                 "DELETE FROM clip_search WHERE id NOT IN (SELECT id FROM clips)",
                 "DELETE FROM clip_thumbnails WHERE id NOT IN (SELECT id FROM clips)",
+                "DELETE FROM clip_dedup WHERE id NOT IN (SELECT id FROM clips)",
             ] {
                 if let Err(e) = self.connection.execute(cleanup, ()).await {
                     let _ = self.connection.execute("ROLLBACK", ()).await;
@@ -514,6 +574,73 @@ mod tests {
         assert_eq!(reopened.content(&item.id)?.text, text);
         Ok(())
     }
+    #[test]
+    fn legacy_text_duplicates_are_indexed_on_reopen_and_merged_on_copy() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let key = [83; 32];
+        let store = HistoryStore::open_with_key(dir.path(), &key)?;
+        let plain = ClipContent::text("legacy duplicate");
+        let first = store.capture(&plain, &Settings::default())?;
+        store.protect(&first.id, Some(true), None)?;
+        let mut rich = plain.clone();
+        rich.formats.push(crate::model::FormatData {
+            name: "text/html".into(),
+            bytes: b"<b>legacy duplicate</b>".to_vec(),
+        });
+        let mut legacy = first.clone();
+        legacy.id = "legacy-rich".into();
+        legacy.fingerprint = rich.fingerprint();
+        legacy.kind = "rich".into();
+        legacy.favorite = true;
+        legacy.pinned = false;
+        legacy.bytes = rich.bytes();
+        pollster::block_on(store.connection.execute(
+            "INSERT INTO clips(id,hash,metadata,payload,ordinal,pinned,favorite,bytes) VALUES(?1,?2,?3,?4,?5,0,1,?6)",
+            turso::params![legacy.id.clone(),legacy.fingerprint.clone(),postcard::to_stdvec(&legacy)?,postcard::to_stdvec(&rich)?,legacy.order+1,legacy.bytes as i64],
+        ))?;
+        drop(store);
+        let store = HistoryStore::open_with_key(dir.path(), &key)?;
+        assert_eq!(store.list()?.len(), 2);
+        let merged = store.capture(&plain, &Settings::default())?;
+        assert_eq!(store.list()?.len(), 1);
+        assert!(merged.pinned && merged.favorite);
+        assert_eq!(
+            store.content(&merged.id)?.fingerprint(),
+            plain.fingerprint()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn matching_text_replaces_formats_and_preserves_protection() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let store = HistoryStore::open_with_key(dir.path(), &[82; 32])?;
+        let settings = Settings::default();
+        let plain = ClipContent::text("same text");
+        let first = store.capture(&plain, &settings)?;
+        store.protect(&first.id, Some(true), Some(true))?;
+        let mut rich = plain.clone();
+        rich.source = "browser.exe".into();
+        rich.formats.push(crate::model::FormatData {
+            name: "text/html".into(),
+            bytes: b"<b>same text</b>".to_vec(),
+        });
+        let latest = store.capture(&rich, &settings)?;
+        assert_eq!(store.list()?.len(), 1);
+        assert_eq!(latest.id, first.id);
+        assert!(latest.pinned && latest.favorite);
+        assert_eq!(latest.kind, "rich");
+        assert_eq!(latest.source, "browser.exe");
+        assert!(store.content(&latest.id)?.formats == rich.formats);
+        assert_eq!(latest.fingerprint, rich.fingerprint());
+        store.capture(&plain, &settings)?;
+        assert_eq!(store.list()?.len(), 1);
+        assert_eq!(store.content(&latest.id)?.formats.len(), 1);
+        store.capture(&ClipContent::text("same text "), &settings)?;
+        assert_eq!(store.list()?.len(), 2);
+        Ok(())
+    }
+
     #[test]
     fn duplicate_refresh_preserves_protection_and_clear_retains_it() -> Result<()> {
         let dir = tempfile::tempdir()?;
