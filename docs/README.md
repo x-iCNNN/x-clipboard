@@ -6,6 +6,8 @@ This page is the map for project documentation. Product decisions and validation
 
 ## Start here / 从这里开始
 
+- [v0.3.9 release notes / v0.3.9 版本说明](RELEASE-v0.3.9.md)
+
 - [Project overview and setup / 项目介绍与运行](../README.md)
 - [Product and implementation decisions / 产品与实现约定](../design/DECISIONS.md)
 - [Native validation and known gaps / 原生验证与已知缺口](NATIVE-VALIDATION.md)

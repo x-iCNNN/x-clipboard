@@ -20,6 +20,8 @@ pub struct Snapshot {
     pub usage: Usage,
     pub history_loaded: bool,
     pub entries: Arc<Vec<Entry>>,
+    // Bounded metadata only; payloads, previews and thumbnails are not kept warm.
+    warm_entries: Arc<Vec<Entry>>,
     pub settings: Settings,
     pub status: String,
     pub error: Option<String>,
@@ -43,6 +45,7 @@ impl Default for Snapshot {
             usage: Usage::default(),
             history_loaded: false,
             entries: Arc::new(vec![]),
+            warm_entries: Default::default(),
             settings: Settings::default(),
             status: "正在解锁本地加密库…".into(),
             error: None,
@@ -222,8 +225,17 @@ impl Service {
         if self.history_active.swap(active, Ordering::AcqRel) == active {
             return;
         }
-        if !active {
+        if active {
             let mut state = self.state.lock().unwrap();
+            state.entries = state.warm_entries.clone();
+            state.history_loaded =
+                state.ready && (!state.entries.is_empty() || state.usage.entries == 0);
+            state.revision += 1;
+        } else {
+            let mut state = self.state.lock().unwrap();
+            if state.history_loaded {
+                state.warm_entries = Arc::new(state.entries.iter().take(64).cloned().collect());
+            }
             self.preview_generation.fetch_add(1, Ordering::AcqRel);
             self.search_generation.fetch_add(1, Ordering::AcqRel);
             state.entries = Arc::new(vec![]);
@@ -386,10 +398,11 @@ impl Service {
         })
     }
     fn refresh(&self, store: &HistoryStore) -> anyhow::Result<()> {
-        let entries = if self.history_active.load(Ordering::Acquire) {
-            Some(store.list()?)
+        let full = self.history_active.load(Ordering::Acquire);
+        let mut entries = if full {
+            store.list()?
         } else {
-            None
+            store.list_limit(64)?
         };
         let usage = store.usage()?;
         let settings = store.settings()?;
@@ -401,8 +414,7 @@ impl Service {
             Some(Arc::new(store.search(&query)?))
         };
         let mut state = self.state.lock().unwrap();
-        let loaded = self.history_active.load(Ordering::Acquire) && entries.is_some();
-        let mut entries = if loaded { entries.unwrap() } else { vec![] };
+        let loaded = self.history_active.load(Ordering::Acquire);
         for entry in &mut entries {
             if let Some((_, pinned, favorite)) = state.pending_protection.get(&entry.id) {
                 entry.pinned = *pinned;
@@ -410,7 +422,12 @@ impl Service {
             }
         }
         entries.sort_by(|a, b| b.pinned.cmp(&a.pinned).then(b.order.cmp(&a.order)));
-        state.entries = Arc::new(entries);
+        state.warm_entries = Arc::new(entries.iter().take(64).cloned().collect());
+        state.entries = if loaded {
+            Arc::new(entries)
+        } else {
+            Arc::new(vec![])
+        };
         state.usage = usage;
         state.history_loaded = loaded;
         state.settings = settings;
@@ -914,6 +931,61 @@ mod tests {
         panic!("history service did not reach the expected state");
     }
     #[test]
+    fn warm_first_page_is_bounded_and_opens_without_waiting_for_worker() {
+        let root = tempfile::tempdir().unwrap();
+        let store = HistoryStore::open(root.path()).unwrap();
+        for i in 0..242 {
+            store
+                .capture(
+                    &ClipContent::text(format!("warm history fixture {i}")),
+                    &Settings::default(),
+                )
+                .unwrap();
+        }
+        let (tx, _rx) = bounded(64);
+        let (_ui_tx, ui_events) = bounded(16);
+        let service = Service {
+            history_active: Arc::new(AtomicBool::new(false)),
+            root: Arc::new(root.path().to_path_buf()),
+            tx,
+            state: Arc::new(Mutex::new(Snapshot::default())),
+            backend: Arc::new(Backend),
+            ui_events,
+            preview_generation: Arc::new(AtomicU64::new(0)),
+            queued_bytes: Arc::new(AtomicUsize::new(0)),
+            search_generation: Arc::new(AtomicU64::new(0)),
+        };
+        service.refresh(&store).unwrap();
+        assert!(service.snapshot().entries.is_empty());
+        assert_eq!(service.snapshot().warm_entries.len(), 64);
+        let started = std::time::Instant::now();
+        service.set_history_active(true);
+        let first = service.snapshot();
+        eprintln!(
+            "242-row history: synchronous first page ready in {:?}",
+            started.elapsed()
+        );
+        assert!(first.history_loaded);
+        assert_eq!(first.entries.len(), 64);
+        // No worker is running, so these rows cannot have come from an asynchronous load.
+        service.refresh(&store).unwrap();
+        assert_eq!(service.snapshot().entries.len(), 242);
+        assert_eq!(service.snapshot().warm_entries.len(), 64);
+        service.set_history_active(false);
+        store
+            .capture(
+                &ClipContent::text("new background copy"),
+                &Settings::default(),
+            )
+            .unwrap();
+        service.refresh(&store).unwrap();
+        service.set_history_active(true);
+        assert_eq!(service.snapshot().entries[0].text, "new background copy");
+        service.refresh(&store).unwrap();
+        assert_eq!(service.snapshot().entries.len(), 243);
+    }
+
+    #[test]
     fn dormant_history_is_unloaded_but_capture_and_reopen_work() {
         let root = tempfile::tempdir().unwrap();
         {
@@ -962,6 +1034,10 @@ mod tests {
         });
         assert!(saved.error.is_none() && saved.entries.is_empty() && saved.thumbnails.is_empty());
         service.set_history_active(true);
+        assert!(
+            service.snapshot().history_loaded,
+            "opening history must publish the warm first page synchronously"
+        );
         let loaded = wait(&service, |state| state.entries.len() == 2);
         let image_id = loaded
             .entries

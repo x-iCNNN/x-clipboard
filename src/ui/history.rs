@@ -1,9 +1,30 @@
 use super::*;
 
 #[derive(Clone)]
-enum HistoryLine {
+pub(super) enum HistoryLine {
     Heading(&'static str, usize),
     Entry(usize),
+}
+
+// Snapshot collections are immutable: pointer identity avoids scanning history on repaint.
+pub(super) struct VisibleCache {
+    pub entries: Arc<Vec<Entry>>,
+    pub search_ids: Arc<HashSet<String>>,
+    pub search_query: String,
+    pub route: &'static str,
+    pub filter: &'static str,
+    pub search: String,
+    pub rows: Arc<Vec<usize>>,
+}
+impl VisibleCache {
+    pub fn matches(&self, snapshot: &Snapshot, route: &str, filter: &str, search: &str) -> bool {
+        Arc::ptr_eq(&self.entries, &snapshot.entries)
+            && Arc::ptr_eq(&self.search_ids, &snapshot.search_ids)
+            && self.search_query == snapshot.search_query
+            && self.route == route
+            && self.filter == filter
+            && self.search == search
+    }
 }
 
 impl Desktop {
@@ -40,12 +61,14 @@ impl Desktop {
     #[inline(never)]
     pub(super) fn history(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let quick = self.kind == Kind::Quick;
-        if self.selected.as_ref().is_some_and(|id| {
-            !self
-                .visible(cx)
-                .iter()
-                .any(|index| &self.snapshot.entries[*index].id == id)
-        }) {
+        if !Arc::ptr_eq(&self.visible(cx), &self.history_rows)
+            && self.selected.as_ref().is_some_and(|id| {
+                !self
+                    .visible(cx)
+                    .iter()
+                    .any(|index| &self.snapshot.entries[*index].id == id)
+            })
+        {
             self.selected = None;
             self.preview_key.clear();
             if let Some(image) = self.image.take() {
@@ -341,30 +364,46 @@ impl Desktop {
         }
         let rows = self.visible(cx);
         let entries = self.snapshot.entries.clone();
-        let pinned = rows.iter().filter(|index| entries[**index].pinned).count();
-        let mut lines = Vec::with_capacity(rows.len() + 2);
-        if pinned > 0 {
-            lines.push(HistoryLine::Heading("置顶", pinned));
-        }
-        for (at, index) in rows.iter().enumerate() {
-            if at == pinned {
-                lines.push(HistoryLine::Heading("最近复制", rows.len() - pinned));
+        if !Arc::ptr_eq(&rows, &self.history_rows)
+            || self.history_compact != self.snapshot.settings.compact
+            || self.history_signature.is_empty()
+        {
+            let pinned = rows.iter().filter(|index| entries[**index].pinned).count();
+            let mut lines = Vec::with_capacity(rows.len() + 2);
+            if pinned > 0 {
+                lines.push(HistoryLine::Heading("置顶", pinned));
             }
-            lines.push(HistoryLine::Entry(*index));
-        }
-        let signature: Vec<_> = lines
-            .iter()
-            .map(|line| match line {
-                HistoryLine::Heading(label, count) => format!("{label}:{count}"),
-                HistoryLine::Entry(index) => {
-                    format!("{}:{}", entries[*index].id, self.snapshot.settings.compact)
+            for (at, index) in rows.iter().enumerate() {
+                if at == pinned {
+                    lines.push(HistoryLine::Heading("最近复制", rows.len() - pinned));
                 }
-            })
-            .collect();
-        if self.history_signature != signature {
-            self.history_scroll.reset(lines.len());
-            self.history_signature = signature;
+                lines.push(HistoryLine::Entry(*index));
+            }
+            let signature: Vec<_> = lines
+                .iter()
+                .map(|line| match line {
+                    HistoryLine::Heading(label, count) => format!("{label}:{count}"),
+                    HistoryLine::Entry(index) => {
+                        format!("{}:{}", entries[*index].id, self.snapshot.settings.compact)
+                    }
+                })
+                .collect();
+            if self.history_signature != signature {
+                self.history_scroll.reset_with_uniform_height(
+                    lines.len(),
+                    px(if self.snapshot.settings.compact {
+                        71.
+                    } else {
+                        87.
+                    }),
+                );
+                self.history_signature = signature;
+            }
+            self.history_lines = Arc::new(lines);
+            self.history_rows = rows.clone();
+            self.history_compact = self.snapshot.settings.compact;
         }
+        let lines = self.history_lines.clone();
         if rows.is_empty() {
             let searching = !self.search.read(cx).value().is_empty();
             let (icon, title, description) = if searching {
@@ -960,7 +999,47 @@ fn type_mark(entry: &Entry, directory: bool, cx: &App) -> AnyElement {
 
 #[cfg(test)]
 mod tests {
+    use super::{Arc, Snapshot, VisibleCache};
     use super::{Entry, type_mark_kind};
+
+    #[test]
+    fn large_history_cache_survives_repaints_and_invalidates_on_data_changes() {
+        let mut snapshot = Snapshot::default();
+        snapshot.entries = Arc::new(
+            (0..10_000)
+                .map(|i| {
+                    let mut entry = file_entry("report.pdf");
+                    entry.id = i.to_string();
+                    entry
+                })
+                .collect(),
+        );
+        let cache = VisibleCache {
+            entries: snapshot.entries.clone(),
+            search_ids: snapshot.search_ids.clone(),
+            search_query: String::new(),
+            route: "all",
+            filter: "all",
+            search: String::new(),
+            rows: Arc::new((0..10_000).collect()),
+        };
+        for _ in 0..10_000 {
+            assert!(cache.matches(&snapshot, "all", "all", ""));
+        }
+        snapshot.revision += 1;
+        assert!(cache.matches(&snapshot, "all", "all", ""));
+        assert!(!cache.matches(&snapshot, "favorites", "all", ""));
+        assert!(!cache.matches(&snapshot, "all", "image", ""));
+        assert!(!cache.matches(&snapshot, "all", "all", "report"));
+        snapshot.search_query = "report".into();
+        assert!(!cache.matches(&snapshot, "all", "all", ""));
+        snapshot.search_query.clear();
+        Arc::make_mut(&mut snapshot.search_ids).insert("1".into());
+        assert!(!cache.matches(&snapshot, "all", "all", ""));
+        snapshot.search_ids = cache.search_ids.clone();
+        Arc::make_mut(&mut snapshot.entries)[0].pinned = true;
+        assert!(!cache.matches(&snapshot, "all", "all", ""));
+    }
     fn file_entry(title: &str) -> Entry {
         Entry {
             id: "file-reference".into(),

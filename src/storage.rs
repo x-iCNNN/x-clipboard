@@ -112,12 +112,15 @@ impl HistoryStore {
         Ok(())
     }
     pub fn list(&self) -> Result<Vec<Entry>> {
+        self.list_limit(i64::MAX)
+    }
+    pub(crate) fn list_limit(&self, limit: i64) -> Result<Vec<Entry>> {
         pollster::block_on(async {
             let mut rows = self
                 .connection
                 .query(
-                    "SELECT metadata FROM clips ORDER BY pinned DESC,ordinal DESC",
-                    (),
+                    "SELECT metadata FROM clips ORDER BY pinned DESC,ordinal DESC LIMIT ?1",
+                    [limit],
                 )
                 .await?;
             let mut entries = Vec::new();

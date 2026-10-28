@@ -752,6 +752,10 @@ struct Desktop {
     recording_shortcut: bool,
     history_scroll: ListState,
     history_signature: Vec<String>,
+    visible_cache: std::cell::RefCell<Option<history::VisibleCache>>,
+    history_lines: Arc<Vec<history::HistoryLine>>,
+    history_rows: Arc<Vec<usize>>,
+    history_compact: bool,
     more: Option<String>,
     clear_protected: bool,
     dialog_focus: FocusHandle,
@@ -881,6 +885,10 @@ impl Desktop {
             recording_shortcut: false,
             history_scroll: ListState::new(0, ListAlignment::Top, px(300.)),
             history_signature: vec![],
+            visible_cache: Default::default(),
+            history_lines: Default::default(),
+            history_rows: Default::default(),
+            history_compact: false,
             more: None,
             clear_protected: false,
             dialog_focus: cx.focus_handle(),
@@ -967,24 +975,42 @@ impl Desktop {
         }
         cx.notify();
     }
-    fn visible(&self, cx: &App) -> Vec<usize> {
+    fn visible(&self, cx: &App) -> Arc<Vec<usize>> {
         let search = self.search.read(cx).value().to_lowercase();
-        self.snapshot
-            .entries
-            .iter()
-            .enumerate()
-            .filter(|(_, e)| {
-                (self.route != "pinned" || e.pinned)
-                    && (self.route != "favorites" || e.favorite)
-                    && matches_filter(self.filter, e)
-                    && (search.is_empty()
-                        || (self.snapshot.search_query == search
-                            && self.snapshot.search_ids.contains(&e.id))
-                        || e.title.to_lowercase().contains(&search)
-                        || e.source.to_lowercase().contains(&search))
-            })
-            .map(|(index, _)| index)
-            .collect()
+        let mut cache = self.visible_cache.borrow_mut();
+        if let Some(cache) = cache.as_ref()
+            && cache.matches(&self.snapshot, self.route, self.filter, &search)
+        {
+            return cache.rows.clone();
+        }
+        let rows: Arc<Vec<usize>> = Arc::new(
+            self.snapshot
+                .entries
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| {
+                    (self.route != "pinned" || e.pinned)
+                        && (self.route != "favorites" || e.favorite)
+                        && matches_filter(self.filter, e)
+                        && (search.is_empty()
+                            || (self.snapshot.search_query == search
+                                && self.snapshot.search_ids.contains(&e.id))
+                            || e.title.to_lowercase().contains(&search)
+                            || e.source.to_lowercase().contains(&search))
+                })
+                .map(|(index, _)| index)
+                .collect(),
+        );
+        *cache = Some(history::VisibleCache {
+            entries: self.snapshot.entries.clone(),
+            search_ids: self.snapshot.search_ids.clone(),
+            search_query: self.snapshot.search_query.clone(),
+            route: self.route,
+            filter: self.filter,
+            search,
+            rows: rows.clone(),
+        });
+        rows
     }
     fn select(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
         if self.multi && !self.checked.insert(id.clone()) {
