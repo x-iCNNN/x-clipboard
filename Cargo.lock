@@ -10428,7 +10428,7 @@ dependencies = [
 
 [[package]]
 name = "x-clipboard"
-version = "0.3.10"
+version = "0.3.11"
 dependencies = [
  "ammonia",
  "anyhow",

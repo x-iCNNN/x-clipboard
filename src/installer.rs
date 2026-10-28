@@ -180,10 +180,19 @@ fn powershell() -> Result<std::process::Command> {
     Ok(command)
 }
 #[cfg(windows)]
+fn write_powershell_script(path: &Path, source: &str) -> Result<()> {
+    // Windows PowerShell 5.1 reads BOM-less scripts using the system ANSI code page.
+    fs::write(
+        path,
+        format!("\u{feff}{}", source.trim_start_matches('\u{feff}')),
+    )?;
+    Ok(())
+}
+#[cfg(windows)]
 fn integrate(options: &Options) -> Result<()> {
     let script = options.target.join("install-integration.ps1");
     let plan = options.target.join("install-options.json");
-    fs::write(&script, include_str!("../scripts/install-integration.ps1"))?;
+    write_powershell_script(&script, include_str!("../scripts/install-integration.ps1"))?;
     fs::write(&plan, serde_json::to_vec(options)?)?;
     let output = powershell()?
         .arg(&script)
@@ -224,7 +233,7 @@ pub fn uninstall(target: &Path) -> Result<()> {
         "x-clipboard-uninstall-{}.ps1",
         uuid::Uuid::new_v4()
     ));
-    fs::write(&script, include_str!("../scripts/uninstall.ps1"))?;
+    write_powershell_script(&script, include_str!("../scripts/uninstall.ps1"))?;
     powershell()?
         .arg(script)
         .arg("-Target")
@@ -238,6 +247,51 @@ pub fn uninstall(target: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    #[test]
+    fn powershell_scripts_preserve_chinese_and_parse_on_legacy_code_pages() {
+        let dir = tempfile::tempdir().unwrap();
+        let probe = dir.path().join("parse.ps1");
+        fs::write(
+            &probe,
+            r#"param([string]$Script)
+$ErrorActionPreference = 'Stop'
+$expected = [IO.File]::ReadAllText($Script, [Text.Encoding]::UTF8)
+foreach ($codePage in @(936, 1252)) {
+    $reader = [IO.StreamReader]::new($Script, [Text.Encoding]::GetEncoding($codePage), $true)
+    try { $source = $reader.ReadToEnd() } finally { $reader.Dispose() }
+    $tokens = $null
+    $parseErrors = $null
+    [void][Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$parseErrors)
+    if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+    if ($source -cne $expected) { throw "Script text changed on code page $codePage" }
+}
+"#,
+        )
+        .unwrap();
+        for (name, source) in [
+            (
+                "install.ps1",
+                include_str!("../scripts/install-integration.ps1"),
+            ),
+            ("uninstall.ps1", include_str!("../scripts/uninstall.ps1")),
+        ] {
+            let script = dir.path().join(name);
+            write_powershell_script(&script, source).unwrap();
+            let output = powershell()
+                .unwrap()
+                .arg(&probe)
+                .arg("-Script")
+                .arg(&script)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
     fn archive() -> Vec<u8> {
         use std::io::Write;
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
